@@ -1,3 +1,9 @@
+<<<<<<< HEAD
+=======
+/* Admin-specific styles for SACDEV Admin Panel */
+
+/* Admin button in navbar */
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 .btn-admin-link {
     background: none;
     border: 1px solid #e2e8f0;
@@ -16,6 +22,12 @@
     color: #1f3a70;
 }
 
+<<<<<<< HEAD
+=======
+/* ══════════════════════════════════════════════════
+   ADMIN DASHBOARD
+══════════════════════════════════════════════════ */
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 .admin-stats-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

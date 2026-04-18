@@ -7,6 +7,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+<<<<<<< HEAD
+=======
+// 🔥 FIREBASE SETUP
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
@@ -15,9 +19,18 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+<<<<<<< HEAD
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 
+=======
+// ================= SERVE FRONTEND =================
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// ================= API ROUTES =================
+
+// 🧪 FIREBASE TEST ROUTE
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 app.get('/firebase-test', async (req, res) => {
   try {
     await db.collection('test').doc('connection').set({
@@ -30,6 +43,10 @@ app.get('/firebase-test', async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+// ✅ Submit data (from frontend form)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 app.post('/submit', async (req, res) => {
   try {
     const data = req.body;
@@ -47,6 +64,10 @@ app.post('/submit', async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+// ✅ Get all submissions (for admin)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 app.get('/submissions', async (req, res) => {
   try {
     const snapshot = await db.collection('submissions')
@@ -66,6 +87,10 @@ app.get('/submissions', async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+// ✅ Update submission status (approve / reject)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 app.patch('/submissions/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
@@ -88,10 +113,18 @@ app.patch('/submissions/:id/status', async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+// ================= FALLBACK (SPA) =================
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });
 
+<<<<<<< HEAD
+=======
+// ================= START SERVER =================
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

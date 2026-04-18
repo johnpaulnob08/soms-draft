@@ -123,12 +123,17 @@ let currentState = {
     selectedOrg: null,
     isLoggedIn: false,
     userEmail: null,
+<<<<<<< HEAD
     authMode: 'login',        
     dashTab: 'home',      
 
     orgName: null,
     orgType: null,
     yearEstablished: null,
+=======
+    authMode: 'register', // 'register' | 'login'
+    // org info
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     orgCluster: null,
     presidentName: null,
     presidentMobile: null,
@@ -144,13 +149,21 @@ function goToPage(pageName) {
 
     document.querySelectorAll('[id^="progress-circle-"]').forEach(el => el.remove());
 
+<<<<<<< HEAD
 
+=======
+    // Show/hide global form sidebar
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const formPages = ['orgInfo','strategicPlan','presidentProfile','orgOfficers','orgMembers','moderatorProfile','gradeAndDocs','submissionSummary'];
     const sidenav = document.getElementById('formSidenav');
     if (formPages.includes(pageName)) {
         sidenav.classList.remove('hidden');
         document.body.classList.add('has-form-sidenav');
+<<<<<<< HEAD
 
+=======
+        // Highlight active item
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
         document.querySelectorAll('.form-sidenav-item').forEach(el => el.classList.remove('active'));
         const activeItem = document.getElementById('snav-' + pageName);
         if (activeItem) activeItem.classList.add('active');
@@ -161,8 +174,11 @@ function goToPage(pageName) {
 
     if (pageName === 'dashboard')     initDashboard();
     if (pageName === 'councilDetail') initCouncilDetail();
+<<<<<<< HEAD
     if (pageName === 'loginPage')     { currentState.authMode = 'login';    initLoginPage(); }
     if (pageName === 'registerPage')  { currentState.authMode = 'register'; initRegisterPage(); }
+=======
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (pageName === 'auth')          initAuth();
     if (pageName === 'councilSelect') initCouncilSelect();
     if (pageName === 'orgSelect')     initOrgSelect();
@@ -175,6 +191,10 @@ function goToPage(pageName) {
     if (pageName === 'gradeAndDocs')     { initGradeAndDocs(); createProgressCircle('gradeAndDocs'); updateGradeDocsProgress(); }
 }
 
+<<<<<<< HEAD
+=======
+// Navigate from sidebar — saves current form data first
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 function snavGo(page) {
     const currentPage = [...document.querySelectorAll('.page')].find(p => !p.classList.contains('hidden'));
     if (currentPage) {
@@ -186,6 +206,10 @@ function snavGo(page) {
     goToPage(page);
 }
 
+<<<<<<< HEAD
+=======
+// HELPERS
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 function getSortedCouncils() {
     const others = Object.keys(councils)
         .filter(k => k !== 'CSG' && k !== 'AECO')
@@ -193,6 +217,7 @@ function getSortedCouncils() {
     return ['CSG', 'AECO', ...others];
 }
 
+<<<<<<< HEAD
 const clusters = {
     'Business Environment': [
         'Junior Financial Executives (JFINEX)',
@@ -387,6 +412,27 @@ function renderClusters() {
         block.appendChild(ul);
         container.appendChild(block);
     });
+=======
+// ═══════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════
+function initDashboard() {
+    const gridFeatured = document.getElementById('councilGridFeatured');
+    const gridOther    = document.getElementById('councilGrid');
+    const gridCentered = document.getElementById('councilGridCentered');
+    gridFeatured.innerHTML = '';
+    gridOther.innerHTML    = '';
+    gridCentered.innerHTML = '';
+
+    const featured = ['CSG', 'AECO'];
+    const rest = getSortedCouncils().filter(c => !featured.includes(c));
+    const others  = rest.filter(c => c !== 'UNITASS');
+    const centered = rest.filter(c => c === 'UNITASS');
+
+    featured.forEach(k  => gridFeatured.appendChild(createCouncilCard(k)));
+    others.forEach(k    => gridOther.appendChild(createCouncilCard(k)));
+    centered.forEach(k  => gridCentered.appendChild(createCouncilCard(k)));
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 }
 
 function createCouncilCard(key) {
@@ -406,7 +452,13 @@ function createCouncilCard(key) {
     return card;
 }
 
+<<<<<<< HEAD
 
+=======
+// ═══════════════════════════════════════════════════
+// COUNCIL DETAIL (public view)
+// ═══════════════════════════════════════════════════
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 function initCouncilDetail() {
     const key = currentState.selectedCouncil;
     document.getElementById('councilDetailTitle').textContent = key;
@@ -428,6 +480,7 @@ function getOrgChoices(key) {
     return [councilEntry, ...subOrgs];
 }
 
+<<<<<<< HEAD
 // AUTH — separate Login and Register pages
 function initLoginPage() {
     const e = document.getElementById('loginEmail');
@@ -508,6 +561,42 @@ window.showAuthError = function(msg) {
 
 function handleLogout() {
     // Sign out na siya sa Firebase 
+=======
+// AUTH
+function initAuth() {
+    document.getElementById('authEmail').value    = '';
+    document.getElementById('authPassword').value = '';
+    document.getElementById('authConfirm').value  = '';
+    document.getElementById('authError').classList.add('hidden');
+    document.getElementById('authError').textContent = '';
+    setAuthMode(currentState.authMode || 'register');
+}
+
+function setAuthMode(mode) {
+    currentState.authMode = mode;
+    const isRegister = mode === 'register';
+    document.getElementById('authTitle').textContent    = isRegister ? 'Create Account' : 'Log In';
+    document.getElementById('authSubtitle').textContent = isRegister
+        ? 'Use your XU email address to register'
+        : 'Welcome back! Log in to continue.';
+    document.getElementById('authConfirmGroup').style.display = isRegister ? '' : 'none';
+    document.getElementById('authSubmitBtn').textContent  = isRegister ? 'Register →' : 'Log In →';
+    document.getElementById('authSwitchText').textContent = isRegister
+        ? 'Already have an account?'
+        : "Don't have an account yet?";
+    document.getElementById('authSwitchBtn').textContent  = isRegister ? 'Log in instead' : 'Register here';
+}
+
+function toggleAuthMode() {
+    setAuthMode(currentState.authMode === 'register' ? 'login' : 'register');
+}
+
+// handleAuth() and showAuthError() are defined in firebase-auth.js (ES module)
+// They are attached to window.handleAuth and window.showAuthError
+
+function handleLogout() {
+    // Sign out of Firebase too
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (window.handleSignOut) {
         window.handleSignOut();
         return;
@@ -553,6 +642,10 @@ function initOrgSelect() {
         const item = document.createElement('div');
         item.className = 'list-item';
         if (idx === 0) {
+<<<<<<< HEAD
+=======
+            // Council itself — highlight
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
             item.classList.add('list-item-council');
         }
         item.onclick = () => {
@@ -570,12 +663,19 @@ function initOrgSelect() {
     });
 }
 
+<<<<<<< HEAD
+=======
+// ═══════════════════════════════════════════════════
+// GUIDELINES
+// ═══════════════════════════════════════════════════
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 function proceedWithConfirm() {
     if (confirm('I confirm that I have read and understood all the re-registration guidelines. Proceed?')) {
         goToPage('orgInfo');
     }
 }
 
+<<<<<<< HEAD
 
 function initOrgInfo() {
     // Dapat naay org name dropdown grouped by cluster (alphabetical dapat each)
@@ -622,28 +722,51 @@ function submitOrgInfo() {
     const orgType  = document.getElementById('infoOrgType').value.trim();
     const cluster  = document.getElementById('infoCluster').value.trim();
     const yearEst  = document.getElementById('infoYearEstablished').value.trim();
+=======
+// ═══════════════════════════════════════════════════
+// ORG INFO
+// ═══════════════════════════════════════════════════
+function initOrgInfo() {
+    if (currentState.orgCluster)       document.getElementById('infoCluster').value        = currentState.orgCluster;
+    if (currentState.presidentName)    document.getElementById('infoPresidentName').value   = currentState.presidentName;
+    if (currentState.presidentMobile)  document.getElementById('infoPresidentMobile').value = currentState.presidentMobile;
+    if (currentState.presidentEmail)   document.getElementById('infoPresidentEmail').value  = currentState.presidentEmail;
+    if (currentState.moderatorName)    document.getElementById('infoModeratorName').value   = currentState.moderatorName;
+}
+
+function submitOrgInfo() {
+    const cluster  = document.getElementById('infoCluster').value.trim();
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const presName = document.getElementById('infoPresidentName').value.trim();
     const presMob  = document.getElementById('infoPresidentMobile').value.trim();
     const presEmail= document.getElementById('infoPresidentEmail').value.trim();
     const modName  = document.getElementById('infoModeratorName').value.trim();
 
+<<<<<<< HEAD
     if (!orgName)   { alert('Please select your Organization Name.');      document.getElementById('infoOrgName').focus();         return; }
     if (!orgType)   { alert('Please select a Type of Organization.');      document.getElementById('infoOrgType').focus();         return; }
+=======
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (!cluster)   { alert('Please select an Org Cluster.');              document.getElementById('infoCluster').focus();         return; }
     if (!presName)  { alert("Please enter the President's Full Name.");    document.getElementById('infoPresidentName').focus();    return; }
     if (!presMob)   { alert("Please enter the President's Mobile Number.");document.getElementById('infoPresidentMobile').focus();  return; }
     if (!presEmail) { alert("Please enter the President's Email Address.");document.getElementById('infoPresidentEmail').focus();   return; }
     if (!modName)   { alert('Please enter the Name of Moderator-Nominee.');document.getElementById('infoModeratorName').focus();   return; }
 
+<<<<<<< HEAD
     currentState.orgName         = orgName;
     currentState.orgType         = orgType;
     currentState.orgCluster      = cluster;
     currentState.yearEstablished = yearEst;
+=======
+    currentState.orgCluster      = cluster;
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     currentState.presidentName   = presName;
     currentState.presidentMobile = presMob;
     currentState.presidentEmail  = presEmail;
     currentState.moderatorName   = modName;
 
+<<<<<<< HEAD
     saveFormData('orgInfo');
     goToPage('strategicPlan');
 }
@@ -656,13 +779,31 @@ function initStrategicPlan() {
         orgNameEl.value = currentState.orgName || currentState.selectedOrg || '';
     }
 
+=======
+    goToPage('strategicPlan');
+}
+
+// ═══════════════════════════════════════════════════
+// STRATEGIC PLAN
+// ═══════════════════════════════════════════════════
+function initStrategicPlan() {
+    // Pre-fill org name if available
+    if (currentState.selectedOrg) {
+        document.getElementById('stratOrgFullName').value = currentState.selectedOrg;
+    }
+    // Seed rows if empty
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     ['bodyOrgDev','bodyStudServ','bodyCommInv'].forEach(id => {
         if (!document.getElementById(id).hasChildNodes()) {
             addRow(id, id.replace('body','total').replace('OrgDev','OrgDev').replace('StudServ','StudServ').replace('CommInv','CommInv'));
             addRow(id, id.replace('body','total').replace('OrgDev','OrgDev').replace('StudServ','StudServ').replace('CommInv','CommInv'));
         }
     });
+<<<<<<< HEAD
    
+=======
+    // Attach live listeners to core text fields
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     ['stratAcronym','stratOrgFullName','stratMission','stratVision'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', updateStratPlanProgress);
@@ -685,7 +826,11 @@ function addRow(bodyId, totalId) {
         <td><button class="btn-del-row" onclick="deleteRow(this, '${bodyId}', '${totalId}')" title="Remove row">&#215;</button></td>
     `;
     tbody.appendChild(tr);
+<<<<<<< HEAD
 
+=======
+    // Attach progress listeners to project name cell (2nd td textarea)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const projectNameTA = tr.querySelector('td:nth-child(2) textarea');
     if (projectNameTA) projectNameTA.addEventListener('input', updateStratPlanProgress);
 }
@@ -705,7 +850,11 @@ function recalcTotal(bodyId, totalId) {
     });
     const totalEl = document.getElementById(totalId);
     if (totalEl) totalEl.value = sum > 0 ? 'Php ' + sum.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
+<<<<<<< HEAD
 
+=======
+    // Sync budget summary from table totals
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     syncBudgetSummary();
     updateStratPlanProgress();
 }
@@ -730,7 +879,11 @@ function syncBudgetSummary() {
 }
 
 function calcBudgetTotal() {
+<<<<<<< HEAD
 
+=======
+    // Legacy – now handled by syncBudgetSummary; kept for safety
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     syncBudgetSummary();
 }
 
@@ -753,8 +906,17 @@ function submitStratPlan() {
     goToPage('presidentProfile');
 }
 
+<<<<<<< HEAD
 function createProgressCircle(containerId) {
 
+=======
+// ═══════════════════════════════════════════════════
+// PROGRESS TRACKERS
+// ═══════════════════════════════════════════════════
+
+function createProgressCircle(containerId) {
+    // Remove existing if any
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const existing = document.getElementById('progress-circle-' + containerId);
     if (existing) existing.remove();
 
@@ -849,10 +1011,17 @@ function updateCircle(containerId, pct, label) {
     if (lbl && label) lbl.textContent = label;
 }
 
+<<<<<<< HEAD
 //  Org Info progress 
 function initOrgInfoProgress() {
     createProgressCircle('orgInfo');
     const fields = ['infoOrgName','infoOrgType','infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
+=======
+// ── Org Info progress ──────────────────────────────
+function initOrgInfoProgress() {
+    createProgressCircle('orgInfo');
+    const fields = ['infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     fields.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', updateOrgInfoProgress);
@@ -862,7 +1031,11 @@ function initOrgInfoProgress() {
 }
 
 function updateOrgInfoProgress() {
+<<<<<<< HEAD
     const fields = ['infoOrgName','infoOrgType','infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
+=======
+    const fields = ['infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     let filled = 0;
     fields.forEach(id => {
         const el = document.getElementById(id);
@@ -872,10 +1045,18 @@ function updateOrgInfoProgress() {
     updateCircle('orgInfo', pct, 'Org Info');
 }
 
+<<<<<<< HEAD
 //  Strat Plan progress
 function updateStratPlanProgress() {
     let total = 0, filled = 0;
 
+=======
+// ── Strategic Plan progress ────────────────────────
+function updateStratPlanProgress() {
+    let total = 0, filled = 0;
+
+    // Core fields: acronym, full name, mission, vision (4 fields)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const coreFields = ['stratAcronym','stratOrgFullName','stratMission','stratVision'];
     coreFields.forEach(id => {
         total++;
@@ -883,6 +1064,10 @@ function updateStratPlanProgress() {
         if (el && el.value.trim()) filled++;
     });
 
+<<<<<<< HEAD
+=======
+    // Each section: count as 1 field if at least 1 row has a project name filled (3 sections)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     ['bodyOrgDev','bodyStudServ','bodyCommInv'].forEach(bodyId => {
         total++;
         const tbody = document.getElementById(bodyId);
@@ -893,6 +1078,10 @@ function updateStratPlanProgress() {
         if (hasEntry) filled++;
     });
 
+<<<<<<< HEAD
+=======
+    // Sources of funds: at least 1 source filled (1 field)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     total++;
     const fundIds = ['fundSOF','fundPTA','fundMembership','fundRaised'];
     let hasFund = false;
@@ -906,6 +1095,7 @@ function updateStratPlanProgress() {
     updateCircle('strategicPlan', pct, 'Form B-1');
 }
 
+<<<<<<< HEAD
 window.addEventListener('DOMContentLoaded', () => {
 
     if (document.getElementById('dashboard')) {
@@ -913,6 +1103,19 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+=======
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+    goToPage('dashboard');
+});
+
+// ═══════════════════════════════════════════════════
+// SAVE / LOAD PERSISTENCE (localStorage)
+// ═══════════════════════════════════════════════════
+
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 const STORAGE_KEY_PREFIX = 'sacdev_form_';
 
 function saveFormData(formId) {
@@ -949,6 +1152,7 @@ function showSaveToast(msg) {
 }
 
 function submitAndNext(currentForm, nextPage) {
+<<<<<<< HEAD
 
     if (currentForm === 'presidentProfile') {
         const required = [
@@ -1000,10 +1204,16 @@ function submitAndNext(currentForm, nextPage) {
             }
         }
     }
+=======
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     saveFormData(currentForm);
     goToPage(nextPage);
 }
 
+<<<<<<< HEAD
+=======
+// ── Generic field collector ───────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 function collectFormData(formId) {
     const container = document.getElementById(formId);
     if (!container) return {};
@@ -1011,11 +1221,19 @@ function collectFormData(formId) {
     container.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
         data[el.id] = el.value;
     });
+<<<<<<< HEAD
 
     container.querySelectorAll('tbody[id]').forEach(tbody => {
         data['__table_' + tbody.id] = collectTableRows(tbody);
     });
 
+=======
+    // Collect table rows as arrays
+    container.querySelectorAll('tbody[id]').forEach(tbody => {
+        data['__table_' + tbody.id] = collectTableRows(tbody);
+    });
+    // Collect image previews (base64)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.querySelectorAll('img.upload-preview[id]').forEach(img => {
         if (!img.classList.contains('hidden') && img.src) {
             data['__img_' + img.id] = img.src;
@@ -1041,11 +1259,19 @@ function restoreFormData(formId) {
     if (!data) return;
     const container = document.getElementById(formId);
     if (!container) return;
+<<<<<<< HEAD
 
     container.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
         if (data[el.id] !== undefined) el.value = data[el.id];
     });
 
+=======
+    // Restore simple fields
+    container.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+        if (data[el.id] !== undefined) el.value = data[el.id];
+    });
+    // Restore images
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.querySelectorAll('img.upload-preview[id]').forEach(img => {
         const key = '__img_' + img.id;
         if (data[key]) {
@@ -1056,12 +1282,22 @@ function restoreFormData(formId) {
             if (ph) ph.style.display = 'none';
         }
     });
+<<<<<<< HEAD
 
+=======
+    // Restore file upload names
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (data['__file_gradeSlipsFileName']) document.getElementById('gradeSlipsFileName').textContent = data['__file_gradeSlipsFileName'];
     if (data['__file_constitutionFileName']) document.getElementById('constitutionFileName').textContent = data['__file_constitutionFileName'];
 }
 
+<<<<<<< HEAD
 
+=======
+// ═══════════════════════════════════════════════════
+// IMAGE / FILE UPLOAD HELPERS
+// ═══════════════════════════════════════════════════
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 
 function handleImageUpload(inputId, previewId, placeholderId) {
     const input = document.getElementById(inputId);
@@ -1074,10 +1310,17 @@ function handleImageUpload(inputId, previewId, placeholderId) {
         preview.src = e.target.result;
         preview.classList.remove('hidden');
         if (placeholder) placeholder.style.display = 'none';
+<<<<<<< HEAD
 
         const box = input.closest('.upload-box') || input.previousElementSibling;
         if (box) box.classList.add('has-file');
 
+=======
+        // Mark parent box
+        const box = input.closest('.upload-box') || input.previousElementSibling;
+        if (box) box.classList.add('has-file');
+        // Trigger progress update
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
         const pageEl = input.closest('.page');
         if (pageEl) triggerProgressUpdate(pageEl.id);
     };
@@ -1104,8 +1347,17 @@ function triggerProgressUpdate(pageId) {
     else if (pageId === 'gradeAndDocs') updateGradeDocsProgress();
 }
 
+<<<<<<< HEAD
 function initPresidentProfile() {
 
+=======
+// ═══════════════════════════════════════════════════
+// PRESIDENT'S PROFILE (Form B-2)
+// ═══════════════════════════════════════════════════
+
+function initPresidentProfile() {
+    // Pre-fill from orgInfo if available
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (currentState.presidentName && !document.getElementById('presFullName').value) {
         document.getElementById('presFullName').value = currentState.presidentName;
     }
@@ -1116,6 +1368,10 @@ function initPresidentProfile() {
         document.getElementById('presEmail').value = currentState.presidentEmail;
     }
 
+<<<<<<< HEAD
+=======
+    // Seed leadership table if empty
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const lb = document.getElementById('presLeadershipBody');
     if (lb && lb.children.length === 0) {
         addLeadershipRow('presLeadershipBody');
@@ -1127,8 +1383,15 @@ function initPresidentProfile() {
         addAwardsRow('presAwardsBody');
     }
 
+<<<<<<< HEAD
     restoreFormData('presidentProfile');
 
+=======
+    // Restore saved data
+    restoreFormData('presidentProfile');
+
+    // Attach progress listeners
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     ['presFullName','presCourseYear','presMobile','presEmail'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', updatePresidentProgress); el.addEventListener('change', updatePresidentProgress); }
@@ -1175,17 +1438,37 @@ function updatePresidentProgress() {
         const el = document.getElementById(id);
         if (el && el.value.trim()) filled++;
     });
+<<<<<<< HEAD
 
+=======
+    // Check signature
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const sig = document.getElementById('presSignaturePreview');
     if (sig && !sig.classList.contains('hidden') && sig.src) filled++;
     const total = required.length + 1; // +1 for signature
     updateCircle('presidentProfile', (filled / total) * 100, 'Form B-2');
 }
 
+<<<<<<< HEAD
 function initOrgOfficers() {
     const tbody = document.getElementById('officersTableBody');
     if (tbody && tbody.children.length === 0) {
 
+=======
+// ═══════════════════════════════════════════════════
+// ORGANIZATION OFFICERS (Form B-3)
+// ═══════════════════════════════════════════════════
+
+function initOrgOfficers() {
+    // Pre-fill cluster from orgInfo
+    const clusterEl = document.getElementById('officersCluster');
+    if (currentState.orgCluster && clusterEl && !clusterEl.value) {
+        clusterEl.value = currentState.orgCluster;
+    }
+    const tbody = document.getElementById('officersTableBody');
+    if (tbody && tbody.children.length === 0) {
+        // Pre-seed president row
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
         addOfficerRow();
         if (currentState.presidentName) {
             const firstRow = tbody.querySelector('tr');
@@ -1193,12 +1476,24 @@ function initOrgOfficers() {
                 const inputs = firstRow.querySelectorAll('input');
                 inputs[0].value = 'President';
                 inputs[1].value = currentState.presidentName;
+<<<<<<< HEAD
                 if (currentState.presidentMobile) inputs[6].value = currentState.presidentMobile;
+=======
+                if (currentState.presidentMobile) inputs[4].value = currentState.presidentMobile;
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
             }
         }
         addOfficerRow();
     }
     restoreFormData('orgOfficers');
+<<<<<<< HEAD
+=======
+
+    ['officersOrgType','officersCluster','officersYearEstablished'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', updateOfficersProgress); el.addEventListener('change', updateOfficersProgress); }
+    });
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     updateOfficersProgress();
 }
 
@@ -1209,9 +1504,13 @@ function addOfficerRow() {
         <td><input type="text" class="strat-cell-input" placeholder="e.g. President"></td>
         <td><input type="text" class="strat-cell-input" placeholder="Last Name, First Name, MI"></td>
         <td><input type="text" class="strat-cell-input" placeholder="e.g. BS CS, 3rd Year"></td>
+<<<<<<< HEAD
         <td><input type="number" class="strat-cell-input" placeholder="0.00" step="0.01" min="0" max="4" title="Semester 1 QPI"></td>
         <td><input type="number" class="strat-cell-input" placeholder="0.00" step="0.01" min="0" max="4" title="Semester 2 QPI"></td>
         <td><input type="number" class="strat-cell-input" placeholder="0.00" step="0.01" min="0" max="4" title="Intercession QPI"></td>
+=======
+        <td><input type="number" class="strat-cell-input" placeholder="0.00" step="0.01" min="0" max="4"></td>
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
         <td><input type="tel" class="strat-cell-input" placeholder="09XXXXXXXXX"></td>
         <td><button class="btn-del-row" onclick="deleteSimpleRow(this)" title="Remove">&#215;</button></td>
     `;
@@ -1228,6 +1527,7 @@ function updateOfficersProgress() {
             if (inputs[0] && inputs[0].value.trim() && inputs[1] && inputs[1].value.trim()) filledRows++;
         });
     }
+<<<<<<< HEAD
     const pct = filledRows > 0 ? Math.min((filledRows / 3) * 100, 100) : 0;
     updateCircle('orgOfficers', pct, 'Form B-3');
 }
@@ -1248,6 +1548,30 @@ function initOrgMembers() {
         }
         restoreFormData('orgMembers');
     }
+=======
+    const total = 3; // at least 1 row + cluster + org type
+    let filled = Math.min(filledRows, 1);
+    if (document.getElementById('officersOrgType')?.value) filled++;
+    if (document.getElementById('officersCluster')?.value) filled++;
+    updateCircle('orgOfficers', (filled / total) * 100, 'Form B-3');
+}
+
+// ═══════════════════════════════════════════════════
+// ORGANIZATION MEMBERS (Form B-4)
+// ═══════════════════════════════════════════════════
+
+function initOrgMembers() {
+    const clusterEl = document.getElementById('membersCluster');
+    if (currentState.orgCluster && clusterEl && !clusterEl.value) {
+        clusterEl.value = currentState.orgCluster;
+    }
+    const tbody = document.getElementById('membersTableBody');
+    if (tbody && tbody.children.length === 0) {
+        addMemberRow();
+        addMemberRow();
+    }
+    restoreFormData('orgMembers');
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     updateMembersProgress();
 }
 
@@ -1278,8 +1602,17 @@ function updateMembersProgress() {
     updateCircle('orgMembers', pct, 'Form B-4');
 }
 
+<<<<<<< HEAD
 function initModeratorProfile() {
 
+=======
+// ═══════════════════════════════════════════════════
+// MODERATOR PROFILE (Form B-5.1)
+// ═══════════════════════════════════════════════════
+
+function initModeratorProfile() {
+    // Pre-fill nominating org
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (currentState.selectedOrg && !document.getElementById('modNominatingOrg').value) {
         document.getElementById('modNominatingOrg').value = currentState.selectedOrg;
     }
@@ -1314,6 +1647,13 @@ function updateModeratorProgress() {
     updateCircle('moderatorProfile', (filled / total) * 100, 'Form B-5.1');
 }
 
+<<<<<<< HEAD
+=======
+// ═══════════════════════════════════════════════════
+// GRADE SLIPS + DOCS (Combined)
+// ═══════════════════════════════════════════════════
+
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 function initGradeAndDocs() {
     restoreFormData('gradeAndDocs');
     updateGradeDocsProgress();
@@ -1336,7 +1676,11 @@ function updateGradeDocsProgress() {
 }
 
 function submitAllForms() {
+<<<<<<< HEAD
 
+=======
+    // Save final form
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     saveFormData('gradeAndDocs');
     const gradeBox = document.getElementById('gradeSlipsBox');
     const constBox = document.getElementById('constitutionBox');
@@ -1348,6 +1692,13 @@ function submitAllForms() {
     alert('All requirements have been submitted successfully!\n\nPlease ensure you have completed all forms and uploaded all required documents. OSA-SACDEV will evaluate your re-registration requirements before granting recognition.');
 }
 
+<<<<<<< HEAD
+=======
+// ═══════════════════════════════════════════════════
+// SUBMISSION SUMMARY
+// ═══════════════════════════════════════════════════
+
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 function scrollToSection(id) {
     const el = document.getElementById(id);
     if (el) {
@@ -1370,6 +1721,10 @@ function buildSummary() {
 
     container.innerHTML = '';
 
+<<<<<<< HEAD
+=======
+    // ── Helper ──────────────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     function val(id) {
         const el = document.getElementById(id);
         return el ? el.value.trim() : '';
@@ -1424,12 +1779,20 @@ function buildSummary() {
         return section;
     }
 
+<<<<<<< HEAD
+=======
+    // ── Account Info ────────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.appendChild(buildSection('ACCOUNT', null, [
         { label: 'XU Email', value: currentState.userEmail, required: true },
         { label: 'Organization', value: currentState.selectedOrg, required: true },
         { label: 'Council', value: currentState.selectedCouncil ? (currentState.selectedCouncil + ' – ' + (councils[currentState.selectedCouncil]?.name || '')) : '', required: true },
     ], 'summary-account'));
 
+<<<<<<< HEAD
+=======
+    // ── Org Info ────────────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.appendChild(buildSection('ORGANIZATION INFORMATION', null, [
         { label: 'Org Cluster', value: val('infoCluster'), required: true },
         { label: "President's Name", value: val('infoPresidentName'), required: true },
@@ -1438,6 +1801,10 @@ function buildSummary() {
         { label: 'Moderator Nominee', value: val('infoModeratorName'), required: true },
     ], 'summary-orginfo'));
 
+<<<<<<< HEAD
+=======
+    // ── Form B-1 ─────────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.appendChild(buildSection('STRATEGIC PLAN', 'Form B-1', [
         { label: 'Org Acronym', value: val('stratAcronym'), required: true },
         { label: 'Full Org Name', value: val('stratOrgFullName'), required: true },
@@ -1445,6 +1812,10 @@ function buildSummary() {
         { label: 'Vision Statement', value: val('stratVision') ? '+ Filled' : '', required: true },
     ], 'summary-b1'));
 
+<<<<<<< HEAD
+=======
+    // ── Form B-2 ─────────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.appendChild(buildSection("PRESIDENT'S PROFILE", 'Form B-2', [
         { label: 'Full Name', value: val('presFullName'), required: true },
         { label: 'Course and Year', value: val('presCourseYear'), required: true },
@@ -1454,6 +1825,10 @@ function buildSummary() {
         { label: 'Photo ID', value: imgFilled('presPhotoPreview') ? '+ Uploaded' : '', required: false },
     ], 'summary-b2'));
 
+<<<<<<< HEAD
+=======
+    // ── Form B-3 ─────────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const officerRows = document.getElementById('officersTableBody')?.querySelectorAll('tr') || [];
     let officerCount = 0;
     officerRows.forEach(tr => {
@@ -1461,9 +1836,18 @@ function buildSummary() {
         if (inputs[0]?.value.trim() && inputs[1]?.value.trim()) officerCount++;
     });
     container.appendChild(buildSection('ORGANIZATION OFFICERS', 'Form B-3', [
+<<<<<<< HEAD
         { label: 'Officers Listed', value: officerCount > 0 ? `${officerCount} officer(s)` : '', required: true },
     ], 'summary-b3'));
 
+=======
+        { label: 'Organization Type', value: val('officersOrgType'), required: true },
+        { label: 'Cluster', value: val('officersCluster'), required: false },
+        { label: 'Officers Listed', value: officerCount > 0 ? `${officerCount} officer(s)` : '', required: true },
+    ], 'summary-b3'));
+
+    // ── Form B-4 ─────────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const memberRows = document.getElementById('membersTableBody')?.querySelectorAll('tr') || [];
     let memberCount = 0;
     memberRows.forEach(tr => {
@@ -1474,6 +1858,10 @@ function buildSummary() {
         { label: 'Members Listed', value: memberCount > 0 ? `${memberCount} member(s)` : 'None / Not applicable', required: false },
     ], 'summary-b4'));
 
+<<<<<<< HEAD
+=======
+    // ── Form B-5.1 ───────────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.appendChild(buildSection("MODERATOR'S PROFILE", 'Form B-5.1', [
         { label: 'Full Name', value: val('modFullName'), required: true },
         { label: 'Nominating Org', value: val('modNominatingOrg'), required: true },
@@ -1484,12 +1872,20 @@ function buildSummary() {
         { label: 'E-Signature', value: imgFilled('modSignaturePreview') ? '+ Uploaded' : '', required: true },
     ], 'summary-b5'));
 
+<<<<<<< HEAD
+=======
+    // ── Form B-6 & Documents ─────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     container.appendChild(buildSection('GRADE SLIPS, CONSTITUTION & LOGO', 'Form B-6 & Docs', [
         { label: 'Grade Slips (Form B-6)', value: fileFilled('gradeSlipsBox') ? '+ Uploaded' : '', required: true },
         { label: 'Organization Constitution', value: fileFilled('constitutionBox') ? '+ Uploaded' : '', required: true },
         { label: 'Organization Logo', value: imgFilled('orgLogoPreview') ? '+ Uploaded' : '', required: true },
     ], 'summary-b6'));
 
+<<<<<<< HEAD
+=======
+    // ── Warning banner ───────────────────────────
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (missingFields.length > 0) {
         warning.classList.remove('hidden');
         document.getElementById('summaryWarningText').innerHTML =
@@ -1505,6 +1901,10 @@ function buildSummary() {
     }
 }
 
+<<<<<<< HEAD
+=======
+// Override submitAllForms to use summary page gate
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 async function submitAllForms() {
     const submitBtn = document.getElementById('finalSubmitBtn');
     if (submitBtn && submitBtn.disabled) {
@@ -1513,6 +1913,10 @@ async function submitAllForms() {
     }
     saveFormData('gradeAndDocs');
 
+<<<<<<< HEAD
+=======
+    // Build submission payload
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const submission = {
         org: currentState.selectedOrg || '—',
         council: currentState.selectedCouncil || '—',
@@ -1525,6 +1929,10 @@ async function submitAllForms() {
         submittedAt: new Date().toLocaleString('en-PH')
     };
 
+<<<<<<< HEAD
+=======
+    // Submit to Firebase via backend
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting…';
@@ -1542,14 +1950,28 @@ async function submitAllForms() {
             throw new Error(err.error || 'Server error');
         }
 
+<<<<<<< HEAD
         alert('All requirements have been submitted successfully!\n\nPlease ensure you have completed all forms and uploaded all required documents. OSA-SACDEV will evaluate your re-registration requirements before granting recognition.');
         goToPage('dashboard');
     } catch (e) {
         console.error('Submission failed:', e);
         alert('Submission failed: ' + e.message + '\n\nPlease check your connection and try again.');
+=======
+        alert('✅ All requirements have been submitted successfully!\n\nPlease ensure you have completed all forms and uploaded all required documents. OSA-SACDEV will evaluate your re-registration requirements before granting recognition.');
+        goToPage('dashboard');
+    } catch (e) {
+        console.error('Submission failed:', e);
+        alert('❌ Submission failed: ' + e.message + '\n\nPlease check your connection and try again.');
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Submit';
         }
     }
+<<<<<<< HEAD
 }
+=======
+}
+
+
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08

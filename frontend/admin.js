@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+// Admin-specific JavaScript for SACDEV Admin Panel
+
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 const councils = {
     CSG: { name: 'Central Student Government', isCouncilOrg: true, orgs: [] },
     AECO: {
@@ -63,8 +68,15 @@ function handleAdminLogin() {
     }
 
     goToPage('adminDashboard');
+<<<<<<< HEAD
     initAdminDashboard(); // loads data from backend
 }
+=======
+    initAdminDashboard(); // 🔥 loads data from backend
+}
+
+// 🔥 MAIN DASHBOARD FUNCTION (UPDATED)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 async function initAdminDashboard() {
     let submissions = [];
 
@@ -123,7 +135,11 @@ async function initAdminDashboard() {
         });
     }
 
+<<<<<<< HEAD
     // Council 
+=======
+    // Council cards
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
     const grid = document.getElementById('adminCouncilGrid');
     grid.innerHTML = '';
 
@@ -153,7 +169,11 @@ function filterAdminTable() {
         tr.style.display = text.includes(q) ? '' : 'none';
     });
 }
+<<<<<<< HEAD
 
+=======
+// ✅ Update submission status (approve / reject)
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
 async function updateStatus(id, status) {
     try {
         const res = await fetch(`/submissions/${id}/status`, {
@@ -167,6 +187,10 @@ async function updateStatus(id, status) {
             throw new Error(err.error || 'Server error');
         }
 
+<<<<<<< HEAD
+=======
+        // Refresh the dashboard after update
+>>>>>>> 672b405c980c9e4d0485b80f032a62fa95742f08
         initAdminDashboard();
     } catch (e) {
         alert('Failed to update status: ' + e.message);
