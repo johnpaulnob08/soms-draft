@@ -10,10 +10,10 @@ The system streamlines the annual re-registration process for recognized student
  
 | Name | Role |
 |---|---|
-| Alamo, Don Martin Raphael | Developer |
-| Awatin, Khrystian Dominic | Developer |
-| Nob, John Paul | Developer |
-| Talian, Mary Angeli | Developer |
+| Alamo, Don Martin Raphael | Frontend Developer |
+| Awatin, Khrystian Dominic | Frontend & Backend Developer |
+| Nob, John Paul | Frontend & Backend Developer |
+| Talian, Mary Angeli | Frontend Developer |
 
 ## Academic Year
  
