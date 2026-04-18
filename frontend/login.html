@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login / Register - SACDEV SOMS</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-logo">
+                <img src="xu_logo.png" alt="Xavier University Logo" class="logo-img">
+                <span class="logo-text">Student Activities<br>and Leadership Development</span>
+            </div>
+            <div class="navbar-right">
+                <div class="navbar-user hidden" id="navbarUser">
+                    <span class="navbar-email" id="navbarEmail"></span>
+                    <button class="btn-logout" onclick="handleLogout()">Log out</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="loginPage" class="page">
+        <div class="container-sm">
+            <button class="btn-back" onclick="window.location.href='index.html'">← Back</button>
+            <div class="box" style="text-align:center;">
+                <h1>Log In</h1>
+                <p>Welcome back! Log in to continue.</p>
+            </div>
+
+            <div style="margin: 0 0 16px 0;">
+                <button id="googleSignInBtn" onclick="handleGoogleAuth()" style="
+                    display:flex; align-items:center; justify-content:center; gap:12px;
+                    width:100%; padding:12px 20px; border:2px solid #e2e8f0;
+                    border-radius:10px; background:#fff; cursor:pointer;
+                    font-size:15px; font-weight:600; color:#1e293b;
+                    transition:box-shadow 0.2s, border-color 0.2s;
+                " onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)';this.style.borderColor='#cbd5e1'"
+                   onmouseout="this.style.boxShadow='none';this.style.borderColor='#e2e8f0'">
+                    <img src="google.svg" alt="Google" style="width:22px;height:22px;">
+                    <span id="googleBtnText">Continue with Google</span>
+                </button>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:12px;margin:20px 0;">
+                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                <span style="color:#94a3b8;font-size:13px;font-weight:500;">or use email &amp; password</span>
+                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+            </div>
+
+            <div class="form">
+                <div class="form-group">
+                    <label class="form-label">XU Email Address <span class="required">*</span></label>
+                    <input type="email" id="loginEmail" class="form-input" placeholder="youremail@my.xu.edu.ph" autocomplete="email">
+                    <div class="field-hint">Must be an official @my.xu.edu.ph email address</div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Password <span class="required">*</span></label>
+                    <input type="password" id="loginPassword" class="form-input" placeholder="Enter your password">
+                </div>
+            </div>
+
+            <div id="loginError" class="error-banner hidden"></div>
+
+            <div class="nav">
+                <div class="nav-left"><button class="btn btn-secondary" onclick="window.location.href='index.html'">← Back</button></div>
+                <div class="nav-right"><button class="btn btn-primary" id="loginSubmitBtn" onclick="handleLogin()">Log In →</button></div>
+            </div>
+            <div class="auth-switch">
+                <span>Don't have an account yet?</span>
+                <button class="auth-switch-btn" onclick="showPage('registerPage')">Register here</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="registerPage" class="page hidden">
+        <div class="container-sm">
+            <button class="btn-back" onclick="showPage('loginPage')">← Back to Login</button>
+            <div class="box" style="text-align:center;">
+                <h1>Create Account</h1>
+                <p>Use your XU email address (@my.xu.edu.ph)</p>
+            </div>
+
+            <div style="margin: 0 0 16px 0;">
+                <button id="googleRegisterBtn" onclick="handleGoogleAuth()" style="
+                    display:flex; align-items:center; justify-content:center; gap:12px;
+                    width:100%; padding:12px 20px; border:2px solid #e2e8f0;
+                    border-radius:10px; background:#fff; cursor:pointer;
+                    font-size:15px; font-weight:600; color:#1e293b;
+                    transition:box-shadow 0.2s, border-color 0.2s;
+                " onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)';this.style.borderColor='#cbd5e1'"
+                   onmouseout="this.style.boxShadow='none';this.style.borderColor='#e2e8f0'">
+                    <img src="google.svg" alt="Google" style="width:22px;height:22px;">
+                    <span id="googleRegisterBtnText">Continue with Google</span>
+                </button>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:12px;margin:20px 0;">
+                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                <span style="color:#94a3b8;font-size:13px;font-weight:500;">or use email &amp; password</span>
+                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+            </div>
+
+            <div class="form">
+                <div class="form-group">
+                    <label class="form-label">XU Email Address <span class="required">*</span></label>
+                    <input type="email" id="registerEmail" class="form-input" placeholder="youremail@my.xu.edu.ph" autocomplete="email">
+                    <div class="field-hint">Must be an official @my.xu.edu.ph email address</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password <span class="required">*</span></label>
+                    <input type="password" id="registerPassword" class="form-input" placeholder="Enter your password">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Confirm Password <span class="required">*</span></label>
+                    <input type="password" id="registerConfirm" class="form-input" placeholder="Re-enter your password">
+                </div>
+            </div>
+
+            <div id="registerError" class="error-banner hidden"></div>
+
+            <div class="nav">
+                <div class="nav-left"><button class="btn btn-secondary" onclick="showPage('loginPage')">← Back</button></div>
+                <div class="nav-right"><button class="btn btn-primary" id="registerSubmitBtn" onclick="handleRegister()">Register →</button></div>
+            </div>
+            <div class="auth-switch">
+                <span>Already have an account?</span>
+                <button class="auth-switch-btn" onclick="showPage('loginPage')">Log in instead</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="auth" style="display:none!important;" aria-hidden="true">
+        <input type="email"    id="authEmail"    autocomplete="off">
+        <input type="password" id="authPassword" autocomplete="off">
+        <input type="password" id="authConfirm"  autocomplete="off">
+        <button id="authSubmitBtn"></button>
+        <div id="authError"></div>
+    </div>
+
+    <script type="module" src="firebase-auth.js"></script>
+    <script src="script.js"></script>
+    <script>
+
+function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            const el = document.getElementById(pageId);
+            if (el) { el.classList.remove('hidden'); window.scrollTo(0, 0); }
+
+            if (pageId === 'loginPage') {
+                document.getElementById('loginEmail').value    = '';
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginError').classList.add('hidden');
+                document.getElementById('loginError').textContent = '';
+                if (window.currentState) currentState.authMode = 'login';
+            } else if (pageId === 'registerPage') {
+                document.getElementById('registerEmail').value    = '';
+                document.getElementById('registerPassword').value = '';
+                document.getElementById('registerConfirm').value  = '';
+                document.getElementById('registerError').classList.add('hidden');
+                document.getElementById('registerError').textContent = '';
+                if (window.currentState) currentState.authMode = 'register';
+            }
+        }
+
+        function goToPage(pageName) {
+            if (pageName === 'loginPage')    { showPage('loginPage');    return; }
+            if (pageName === 'registerPage') { showPage('registerPage'); return; }
+            if (pageName === 'login')        { window.location.href = 'registration.html'; return; }
+            if (pageName === 'dashboard')    { window.location.href = 'index.html'; return; }
+        }
+
+        function handleLogin() {
+            if (window.currentState) currentState.authMode = 'login';
+
+            const le = document.getElementById('loginEmail');
+            const lp = document.getElementById('loginPassword');
+            document.getElementById('authEmail').value    = le ? le.value : '';
+            document.getElementById('authPassword').value = lp ? lp.value : '';
+            document.getElementById('authConfirm').value  = '';
+            if (window.handleAuth) window.handleAuth();
+        }
+
+        function handleRegister() {
+            if (window.currentState) currentState.authMode = 'register';
+
+            const re = document.getElementById('registerEmail');
+            const rp = document.getElementById('registerPassword');
+            const rc = document.getElementById('registerConfirm');
+            document.getElementById('authEmail').value    = re ? re.value : '';
+            document.getElementById('authPassword').value = rp ? rp.value : '';
+            document.getElementById('authConfirm').value  = rc ? rc.value : '';
+            if (window.handleAuth) window.handleAuth();
+        }
+
+        function handleLogout() {
+            if (window.handleSignOut) { window.handleSignOut(); return; }
+            window.location.href = 'index.html';
+        }
+
+
+        window.showAuthError = function(msg) {
+            const loginHidden = document.getElementById('loginPage').classList.contains('hidden');
+            const errId = loginHidden ? 'registerError' : 'loginError';
+            const errEl = document.getElementById(errId);
+            if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+            const legacy = document.getElementById('authError');
+            if (legacy) { legacy.textContent = msg; legacy.classList.remove('hidden'); }
+        };
+
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.currentState) currentState.authMode = 'login';
+            showPage('loginPage');
+        });
+    </script>
+</body>
+</html>

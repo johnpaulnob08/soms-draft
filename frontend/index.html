@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Activities and Leadership Development - Xavier University</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-logo">
+                <img src="xu_logo.png" alt="Xavier University Logo" class="logo-img">
+                <span class="logo-text">Student Activities<br>and Leadership Development</span>
+            </div>
+            <div class="navbar-right">
+                <div class="navbar-user hidden" id="navbarUser">
+                    <span class="navbar-email" id="navbarEmail"></span>
+                    <button class="btn-logout" onclick="handleLogout()">Log out</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Dashboard  -->
+    <div id="dashboard" class="page">
+        <div class="dashboard-container">
+            <div class="dash-hero">
+                <h1 class="dash-title"><span style="font-family:Georgia,serif;font-weight:normal;">Xavier Ateneo</span> Student Organization Management System</h1>
+
+                <!-- Nav Tabs na part kadtong naay list sa orgs -->
+                <nav class="dash-nav" id="dashNav">
+                    <button class="dash-nav-btn active" data-tab="home" onclick="switchDashTab('home')">Home</button>
+                    <button class="dash-nav-btn" data-tab="directory" onclick="switchDashTab('directory')">Directory</button>
+                    <button class="dash-nav-btn" data-tab="councils" onclick="switchDashTab('councils')">Councils</button>
+                    <button class="dash-nav-btn" data-tab="clusters" onclick="switchDashTab('clusters')">Clusters</button>
+                </nav>
+
+                <div class="dash-proceed">
+                    <button class="btn btn-primary" onclick="window.location.href='login.html'">Proceed to Registration</button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="dash-content" id="dashContent">
+
+                <div id="dashTab-home" class="dash-tab active"></div>
+
+                <div id="dashTab-directory" class="dash-tab hidden">
+                    <div class="dash-panel">
+                        <div class="dash-panel-header">
+                            <h2 class="dash-panel-title">All Organizations</h2>
+                            <div class="dash-search-wrap">
+                                <input type="text" id="directorySearch" class="dash-search" placeholder="Search organizations…" oninput="filterDirectory(this.value)">
+                            </div>
+                        </div>
+                        <div id="directoryList" class="dash-org-list"></div>
+                    </div>
+                </div>
+
+                <div id="dashTab-councils" class="dash-tab hidden">
+                    <div class="dash-panel">
+                        <h2 class="dash-panel-title">Councils</h2>
+                        <div id="councilsList" class="dash-councils-list"></div>
+                    </div>
+                </div>
+
+                <div id="dashTab-clusters" class="dash-tab hidden">
+                    <div class="dash-panel">
+                        <h2 class="dash-panel-title">Clusters</h2>
+                        <div id="clustersList" class="dash-clusters-list"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="councilDetail" class="page hidden">
+        <div class="container-md">
+            <button class="btn-back" onclick="goToPage('dashboard')">← Back to Dashboard</button>
+            <div class="box"><h1 id="councilDetailTitle"></h1><p id="councilDetailDesc"></p></div>
+            <div class="list" id="orgListDetail"></div>
+            <div class="nav"><div class="nav-left"><button class="btn btn-secondary" onclick="goToPage('dashboard')">← Back</button></div></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        function handleLogout() {
+            if (window.handleSignOut) { window.handleSignOut(); return; }
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+<footer class="site-footer">
+    <p>© 2026 Office of Student Affairs - Student Activities and Leadership Development</p>
+    <p>Xavier University - Ateneo de Cagayan</p>
+    <p>Corrales Avenue, Cagayan de Oro City, Philippines</p>
+</footer>
+</html>
