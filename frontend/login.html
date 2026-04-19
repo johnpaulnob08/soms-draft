@@ -62,6 +62,37 @@
                 </div>
             </div>
 
+            <div style="text-align:right; margin-top:6px; margin-bottom:12px;">
+                <button class="auth-switch-btn" onclick="showForgotPassword()" style="font-size:13px; color:#0f766e; font-weight:600; text-decoration:underline; text-underline-offset:2px;">Forgot Password?</button>
+            </div>
+
+            <!-- Forgot Password inline panel — always in DOM, toggled visible -->
+            <div id="forgotPasswordPanel" style="
+                display:none; background:#f8fafc; border:1.5px solid #e2e8f0;
+                border-radius:12px; padding:18px 18px 14px; margin-bottom:14px;
+            ">
+                <div style="font-size:14px; font-weight:700; color:#0f172a; margin-bottom:4px;">Reset Your Password</div>
+                <div style="font-size:13px; color:#64748b; margin-bottom:12px;">
+                    Enter your XU email address below and we'll send you a link to reset your password.
+                </div>
+                <input type="email" id="forgotEmailInput" class="form-input"
+                    placeholder="youremail@my.xu.edu.ph"
+                    style="margin-bottom:10px;"
+                    onkeydown="if(event.key==='Enter') sendForgotPassword()">
+                <div id="forgotFeedback" style="display:none; font-size:13px; font-weight:600;
+                    padding:9px 13px; border-radius:8px; margin-bottom:10px;"></div>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                    <button onclick="hideForgotPassword()" style="
+                        padding:7px 16px; border:1.5px solid #e2e8f0; border-radius:8px;
+                        background:#fff; color:#64748b; font-size:13px; font-weight:600;
+                        cursor:pointer; font-family:inherit;">Cancel</button>
+                    <button id="forgotSendBtn" onclick="sendForgotPassword()" style="
+                        padding:7px 16px; border:none; border-radius:8px;
+                        background:#0f766e; color:#fff; font-size:13px; font-weight:600;
+                        cursor:pointer; font-family:inherit;">Send Reset Link</button>
+                </div>
+            </div>
+
             <div id="loginError" class="error-banner hidden"></div>
 
             <div class="nav">
@@ -216,6 +247,85 @@ function showPage(pageId) {
             if (window.currentState) currentState.authMode = 'login';
             showPage('loginPage');
         });
+
+        function showForgotPassword() {
+            const panel = document.getElementById('forgotPasswordPanel');
+            const input = document.getElementById('forgotEmailInput');
+            const fb    = document.getElementById('forgotFeedback');
+            const btn   = document.getElementById('forgotSendBtn');
+            if (!panel) return;
+            // Pre-fill with whatever email is in the login field
+            const loginEmail = document.getElementById('loginEmail');
+            if (input && loginEmail && loginEmail.value.trim()) {
+                input.value = loginEmail.value.trim();
+            }
+            if (fb)  { fb.style.display = 'none'; fb.textContent = ''; }
+            if (btn) { btn.disabled = false; btn.textContent = 'Send Reset Link'; }
+            panel.style.display = 'block';
+            if (input) setTimeout(() => input.focus(), 50);
+        }
+
+        function hideForgotPassword() {
+            const panel = document.getElementById('forgotPasswordPanel');
+            if (panel) panel.style.display = 'none';
+        }
+
+        async function sendForgotPassword() {
+            const input = document.getElementById('forgotEmailInput');
+            const fb    = document.getElementById('forgotFeedback');
+            const btn   = document.getElementById('forgotSendBtn');
+            const email = input ? input.value.trim() : '';
+
+            if (!email) {
+                showForgotFeedback('Please enter your XU email address.', false);
+                return;
+            }
+            if (!email.endsWith('@my.xu.edu.ph')) {
+                showForgotFeedback('Please use your official XU email address (@my.xu.edu.ph).', false);
+                return;
+            }
+
+            if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+            try {
+                if (!window.handlePasswordReset) {
+                    // firebase-auth.js may still be loading — wait briefly
+                    await new Promise(r => setTimeout(r, 800));
+                }
+                if (!window.handlePasswordReset) {
+                    throw new Error('Reset service is not available yet. Please try again in a moment.');
+                }
+                await window.handlePasswordReset(email);
+                showForgotFeedback('✓ Reset link sent! Check your inbox (and spam folder).', true);
+                if (btn) { btn.textContent = 'Sent ✓'; }
+                // Auto-hide panel after 4 s on success
+                setTimeout(hideForgotPassword, 4000);
+            } catch (err) {
+                const code = err.code || '';
+                let msg = err.message || 'Failed to send reset email. Please try again.';
+                if (code === 'auth/user-not-found')         msg = 'No account found with that email.';
+                else if (code === 'auth/invalid-email')     msg = 'Invalid email address format.';
+                else if (code === 'auth/too-many-requests') msg = 'Too many attempts. Please wait a moment and try again.';
+                showForgotFeedback(msg, false);
+                if (btn) { btn.disabled = false; btn.textContent = 'Send Reset Link'; }
+            }
+        }
+
+        function showForgotFeedback(msg, success) {
+            const fb = document.getElementById('forgotFeedback');
+            if (!fb) return;
+            fb.textContent = msg;
+            fb.style.display = 'block';
+            if (success) {
+                fb.style.background = '#f0fdf4';
+                fb.style.color      = '#16a34a';
+                fb.style.border     = '1.5px solid #bbf7d0';
+            } else {
+                fb.style.background = '#fef2f2';
+                fb.style.color      = '#dc2626';
+                fb.style.border     = '1.5px solid #fecaca';
+            }
+        }
     </script>
 </body>
 </html>

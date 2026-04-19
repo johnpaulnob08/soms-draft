@@ -217,6 +217,7 @@ function renderTable(submissions) {
                     <button class="btn-inline-reject ${s.status === 'rejected' ? 'active' : ''}"
                         onclick="updateStatusAndRefresh('${s.id}', 'rejected')" title="Reject">✕</button>
                 </div>
+                ${s.published ? `<button class="btn-inline-unpublish" onclick="event.stopPropagation(); togglePublish('${s.id}', false)" title="Unpublish Plans">🔴 Unpublish</button>` : ''}
             </td>
         `;
         tbody.appendChild(tr);
@@ -295,15 +296,62 @@ function toggleCluster(headerEl) {
 
 function openDetailModal(submission) {
     const s = typeof submission === 'string' ? JSON.parse(submission) : submission;
-    const modal = document.getElementById('detailModal');
+    const modal   = document.getElementById('detailModal');
     const content = document.getElementById('modalContent');
 
     const orgName = s.org || s.orgName || '—';
 
-    const val = (v) => v || '<span style="color:#94a3b8;font-style:italic;">—</span>';
+    // N/A fallback: blank/missing → "N/A"
+    const val = (v) => (v && v.toString().trim() && v !== '—')
+        ? v
+        : '<span style="color:#94a3b8;font-style:italic;">N/A</span>';
+
+    // Compact helper: one label:value row
+    const f = (label, v) =>
+        `<div class="modal-field"><label>${label}</label><span>${val(v)}</span></div>`;
+
+    // Render a strategic plan table section
+    const renderPlanTable = (rows, title) => {
+        if (!rows || rows.length === 0)
+            return `<p style="font-size:13px;color:#94a3b8;font-style:italic;margin:4px 0 10px;">No entries for ${title}.</p>`;
+        const rowsHtml = rows.map(r => {
+            const arr = Array.isArray(r) ? r : Object.keys(r).sort().map(k => r[k]);
+            const date    = arr[0] || '';
+            const project = arr[1] || '';
+            const obj     = arr[2] || '';
+            const head    = arr[6] || '';
+            return `<tr>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:12px;white-space:nowrap;">${date || 'N/A'}</td>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:12px;">
+                    <strong>${project || 'N/A'}</strong>
+                    ${obj ? `<br><span style="color:#64748b;font-size:11px;">${obj}</span>` : ''}
+                </td>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:12px;">${head || 'N/A'}</td>
+            </tr>`;
+        }).join('');
+        return `
+            <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.6px;
+                text-transform:uppercase;margin:10px 0 4px;">${title}</div>
+            <div style="overflow-x:auto;margin-bottom:10px;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <thead><tr>
+                        <th style="padding:5px 8px;border:1px solid #e2e8f0;background:#f8fafc;
+                            font-size:11px;text-align:left;white-space:nowrap;">Target Date</th>
+                        <th style="padding:5px 8px;border:1px solid #e2e8f0;background:#f8fafc;
+                            font-size:11px;text-align:left;">Project / Initiative</th>
+                        <th style="padding:5px 8px;border:1px solid #e2e8f0;background:#f8fafc;
+                            font-size:11px;text-align:left;">Project Head</th>
+                    </tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            </div>`;
+    };
 
     const officerCount = s.officerCount || '—';
     const memberCount  = s.memberCount  || '—';
+    const hasConst = s.constitutionFileName &&
+        s.constitutionFileName !== 'Click to upload constitution (PDF)' &&
+        s.constitutionFileName.trim() !== '';
 
     content.innerHTML = `
         <div class="modal-header">
@@ -312,45 +360,160 @@ function openDetailModal(submission) {
             <div class="modal-org-meta">
                 <span class="modal-meta-item">🏛️ <strong>${val(s.council || s.orgType)}</strong></span>
                 <span class="modal-meta-item">📁 <strong>${val(s.cluster)}</strong></span>
-                <span class="modal-meta-item">📅 <strong>${val(s.createdAt)}</strong></span>
+                <span class="modal-meta-item">📅 <strong>${val(s.createdAt || s.submittedAt)}</strong></span>
             </div>
         </div>
         <div class="modal-body">
 
+            <!-- ── Organization Information ──────────────────── -->
             <div class="modal-section">
                 <div class="modal-section-title">Organization Information</div>
                 <div class="modal-grid-2">
-                    <div class="modal-field"><label>Org Name</label><span>${val(orgName)}</span></div>
-                    <div class="modal-field"><label>Type</label><span>${val(s.orgType || s.council)}</span></div>
-                    <div class="modal-field"><label>Cluster</label><span>${val(s.cluster)}</span></div>
-                    <div class="modal-field"><label>Year Established</label><span>${val(s.yearEstablished)}</span></div>
+                    ${f('Organization Name', orgName)}
+                    ${f('Type of Organization', s.orgType || s.council)}
+                    ${f('Org Cluster', s.cluster)}
+                    ${f('Year Established', s.yearEstablished)}
+                    ${f('Organization Email', s.orgEmail)}
+                    ${f('User (Submitter) Email', s.email)}
                 </div>
             </div>
 
+            <!-- ── Strategic Plan (B-1) ───────────────────────── -->
             <div class="modal-section">
-                <div class="modal-section-title">President's Information</div>
-                <div class="modal-grid-2">
-                    <div class="modal-field"><label>Full Name</label><span>${val(s.president)}</span></div>
-                    <div class="modal-field"><label>Email</label><span>${val(s.email)}</span></div>
-                    <div class="modal-field"><label>Mobile</label><span>${val(s.presidentMobile)}</span></div>
-                    <div class="modal-field"><label>Sex</label><span>${val(s.presidentSex)}</span></div>
+                <div class="modal-section-title">Strategic Plan — Form B-1</div>
+                <div class="modal-grid-2" style="margin-bottom:14px;">
+                    ${f('Org Acronym', s.stratAcronym)}
+                    ${f('Complete Organization Name', s.stratOrgFullName)}
                 </div>
+                <div style="margin-bottom:10px;">
+                    <div class="modal-field" style="margin-bottom:8px;">
+                        <label>Mission Statement</label>
+                        <span style="white-space:pre-wrap;">${val(s.stratMission)}</span>
+                    </div>
+                    <div class="modal-field">
+                        <label>Vision Statement</label>
+                        <span style="white-space:pre-wrap;">${val(s.stratVision)}</span>
+                    </div>
+                </div>
+                ${renderPlanTable(s.table_bodyOrgDev   || s['table_bodyOrgDev'],   'Organizational Development')}
+                ${renderPlanTable(s.table_bodyStudServ  || s['table_bodyStudServ'], 'Student Services')}
+                ${renderPlanTable(s.table_bodyCommInv   || s['table_bodyCommInv'],  'Community Involvement')}
             </div>
 
+            <!-- ── President's Profile (B-2) ─────────────────── -->
             <div class="modal-section">
-                <div class="modal-section-title">Form Completion</div>
+                <div class="modal-section-title">President's Profile — Form B-2</div>
                 <div class="modal-grid-2">
-                    <div class="modal-field"><label>Strategic Plan (B-1)</label><span>${s.stratAcronym ? '✓ Filled' : '— Not filled'}</span></div>
-                    <div class="modal-field"><label>President Profile (B-2)</label><span>${s.presFullName ? '✓ Filled' : '— Not filled'}</span></div>
-                    <div class="modal-field"><label>Officers (B-3)</label><span>${officerCount !== '—' ? `${officerCount} officer(s)` : val(null)}</span></div>
-                    <div class="modal-field"><label>Members (B-4)</label><span>${memberCount !== '—' ? `${memberCount} member(s)` : val(null)}</span></div>
-                    <div class="modal-field"><label>Moderator (B-5.1)</label><span>${val(s.moderatorName)}</span></div>
-                    <div class="modal-field"><label>Constitution</label><span>${s.constitutionFileName && s.constitutionFileName !== 'Click to upload constitution (PDF)' ? '✓ Uploaded' : '— Not uploaded'}</span></div>
-                    <div class="modal-field"><label>Logo</label><span>${s.orgLogoData ? '✓ Uploaded' : '— Not uploaded'}</span></div>
-                    <div class="modal-field"><label>Submitted At</label><span>${val(s.createdAt)}</span></div>
+                    ${f('Full Name', s.presFullName || s.president)}
+                    ${f('Course and Year', s.presCourseYear)}
+                    ${f('Birthday', s.presBirthday)}
+                    ${f('Age', s.presAge)}
+                    ${f('Sex', s.presSex)}
+                    ${f('Religion', s.presReligion)}
+                    ${f('Mobile Number', s.presMobile || s.presidentMobile)}
+                    ${f('City Landline', s.presLandlineCity)}
+                    ${f('Email Address', s.presEmail || s.presidentEmail)}
+                    ${f('ID Number', s.presIdNumber)}
+                    ${f('Provincial Landline', s.presLandlineProv)}
+                    ${f('Facebook Account', s.presFacebook)}
+                </div>
+                <div class="modal-grid-2" style="margin-top:8px;">
+                    ${f('Complete Home Address', s.presHomeAddress)}
+                    ${f('Complete City Address', s.presCityAddress)}
+                </div>
+                <div style="margin-top:12px;font-size:11px;font-weight:700;color:#64748b;
+                    letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;">Family Background</div>
+                <div class="modal-grid-2">
+                    ${f("Father's Name", s.presFatherName)}
+                    ${f("Father's Occupation", s.presFatherOcc)}
+                    ${f("Father's Mobile", s.presFatherMobile)}
+                    ${f("Mother's Name", s.presMotherName)}
+                    ${f("Mother's Occupation", s.presMotherOcc)}
+                    ${f("Mother's Mobile", s.presMotherMobile)}
+                    ${f("Guardian's Name", s.presGuardianName)}
+                    ${f("Guardian's Relationship", s.presGuardianRel)}
+                    ${f("Guardian's Mobile", s.presGuardianMobile)}
+                    ${f('Number of Siblings', s.presSiblings)}
+                </div>
+                <div style="margin-top:12px;font-size:11px;font-weight:700;color:#64748b;
+                    letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;">Educational Background</div>
+                <div class="modal-grid-2">
+                    ${f('High School Name', s.presHsName)}
+                    ${f('High School Address', s.presHsAddress)}
+                    ${f('High School Year Graduated', s.presHsGrad)}
+                    ${f('Grade School Name', s.presGsName)}
+                    ${f('Grade School Address', s.presGsAddress)}
+                    ${f('Grade School Year Graduated', s.presGsGrad)}
+                    ${f('Scholarship', s.presScholarship)}
+                    ${f('Scholarship Year Granted', s.presScholarshipYr)}
+                </div>
+                <div style="margin-top:8px;">
+                    <div class="modal-field">
+                        <label>Skills, Hobbies and Interests</label>
+                        <span style="white-space:pre-wrap;">${val(s.presSkills)}</span>
+                    </div>
                 </div>
             </div>
 
+            <!-- ── Officers (B-3) ────────────────────────────── -->
+            <div class="modal-section">
+                <div class="modal-section-title">Officers — Form B-3</div>
+                <div class="modal-grid-2">
+                    ${f('Officers Listed', officerCount !== '—' ? `${officerCount} officer(s)` : null)}
+                </div>
+            </div>
+
+            <!-- ── Members (B-4) ─────────────────────────────── -->
+            <div class="modal-section">
+                <div class="modal-section-title">Members — Form B-4</div>
+                <div class="modal-grid-2">
+                    ${f('Members Listed', memberCount !== '—' ? `${memberCount} member(s)` : null)}
+                    ${f('Applicable', (s.orgType || '').toLowerCase() === 'extra-curricular' ? 'Yes (Extra-Curricular)' : 'Not required for this org type')}
+                </div>
+            </div>
+
+            <!-- ── Moderator's Profile (B-5.1) ───────────────── -->
+            <div class="modal-section">
+                <div class="modal-section-title">Moderator's Profile — Form B-5.1</div>
+                <div class="modal-grid-2">
+                    ${f('Full Name', s.modFullName || s.moderatorName)}
+                    ${f('Nominating Organization', s.modNominatingOrg)}
+                    ${f('Birthday', s.modBirthday)}
+                    ${f('Age', s.modAge)}
+                    ${f('Sex', s.modSex)}
+                    ${f('Religion', s.modReligion)}
+                    ${f('Official Designation', s.modDesignation)}
+                    ${f('Unit / College / Department', s.modDepartment)}
+                    ${f('Status', s.modStatus)}
+                    ${f('Years of Service', s.modYearsService)}
+                    ${f('Mobile Number', s.modMobile)}
+                    ${f('Email Address', s.modEmail)}
+                    ${f('Landline', s.modLandline)}
+                    ${f('Facebook Account', s.modFacebook)}
+                    ${f('Complete City Address', s.modCityAddress)}
+                    ${f('Was Moderator Before?', s.modWasModBefore)}
+                    ${f('Previous Org as Moderator', s.modPrevOrgName)}
+                    ${f('Is Mod of Nominating Org?', s.modIsModOfNom)}
+                    ${f('Years as Mod of Nominating Org', s.modYearsAsModNom)}
+                </div>
+                <div style="margin-top:8px;">
+                    <div class="modal-field">
+                        <label>Special Skills / Interests</label>
+                        <span style="white-space:pre-wrap;">${val(s.modSpecialSkills)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Documents ─────────────────────────────────── -->
+            <div class="modal-section">
+                <div class="modal-section-title">Documents</div>
+                <div class="modal-grid-2">
+                    ${f('Organization Constitution', hasConst ? '✓ ' + s.constitutionFileName : null)}
+                    ${f('Organization Logo / Seal', s.orgLogoData ? '✓ Uploaded' : null)}
+                </div>
+            </div>
+
+            <!-- ── Status & Actions ──────────────────────────── -->
             <div class="modal-status-row">
                 <span class="modal-status-label">Current Status:</span>
                 ${statusBadge(s.status)}
@@ -374,6 +537,7 @@ function openDetailModal(submission) {
                     }
                 </div>
             </div>
+
         </div>
     `;
 
@@ -444,7 +608,6 @@ function closeReportPanel(e) {
     if (e && e.target !== document.getElementById('reportPanel')) return;
     document.getElementById('reportPanel').classList.add('hidden');
     document.body.style.overflow = '';
-    // Destroy charts to allow re-render
     Object.values(reportCharts).forEach(c => c.destroy());
     reportCharts = {};
 }
@@ -456,16 +619,13 @@ function buildReport() {
     const pending  = allSubmissions.filter(s => s.status === 'pending' || !s.status).length;
     const rejected = allSubmissions.filter(s => s.status === 'rejected').length;
 
-    // Submitted org names set
     const submittedNames = new Set(
         allSubmissions.map(s => (s.org || s.orgName || '').trim()).filter(Boolean)
     );
 
-    // All known orgs from CLUSTERS (flat, unique)
     const allKnownOrgs = [...new Set(Object.values(CLUSTERS).flat())].sort();
     const notSubmitted = allKnownOrgs.filter(o => !submittedNames.has(o));
 
-    // Cluster counts for submitted orgs
     const clusterCounts = {};
     Object.keys(CLUSTERS).sort().forEach(c => { clusterCounts[c] = 0; });
     allSubmissions.forEach(s => {
@@ -474,9 +634,8 @@ function buildReport() {
     });
     const maxCluster = Math.max(1, ...Object.values(clusterCounts));
 
-    // Sex breakdown
-    const male   = allSubmissions.filter(s => (s.presidentSex || '').toLowerCase() === 'male').length;
-    const female = allSubmissions.filter(s => (s.presidentSex || '').toLowerCase() === 'female').length;
+    const male   = allSubmissions.filter(s => (s.presSex || s.presidentSex || '').toLowerCase() === 'male').length;
+    const female = allSubmissions.filter(s => (s.presSex || s.presidentSex || '').toLowerCase() === 'female').length;
     const sexOther = total - male - female;
 
     content.innerHTML = `
@@ -530,11 +689,9 @@ function buildReport() {
         </div>
     `;
 
-    // Destroy old charts
     Object.values(reportCharts).forEach(c => c.destroy());
     reportCharts = {};
 
-    // Status doughnut chart
     const ctxStatus = document.getElementById('chartStatus').getContext('2d');
     reportCharts.status = new Chart(ctxStatus, {
         type: 'doughnut',
@@ -556,7 +713,6 @@ function buildReport() {
         }
     });
 
-    // Sex bar chart
     const ctxSex = document.getElementById('chartSex').getContext('2d');
     reportCharts.sex = new Chart(ctxSex, {
         type: 'bar',
@@ -581,9 +737,6 @@ function buildReport() {
     });
 }
 
-// ════════════════════════════════════════════════
-// KEYBOARD SHORTCUTS
-// ════════════════════════════════════════════════
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
         closeDetailModal();
@@ -596,9 +749,7 @@ document.addEventListener('keydown', e => {
     }
 });
 
-// ════════════════════════════════════════════════
-// SESSION RESTORE — skip login if already logged in
-// ════════════════════════════════════════════════
+
 document.addEventListener('DOMContentLoaded', () => {
     try {
         if (sessionStorage.getItem('sacdev_adminLoggedIn') === '1') {

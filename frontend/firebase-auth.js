@@ -6,7 +6,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -174,6 +175,10 @@ window.handleSignOut = async function () {
   window.location.href = 'index.html';
 };
 
+window.handlePasswordReset = async function (email) {
+  await sendPasswordResetEmail(auth, email);
+};
+
 function friendlyError(err) {
   switch (err.code) {
     case "auth/email-already-in-use":   return "This email is already registered. Try logging in instead.";
@@ -183,6 +188,8 @@ function friendlyError(err) {
     case "auth/too-many-requests":      return "Too many attempts. Please wait a moment and try again.";
     case "auth/network-request-failed": return "Network error. Check your internet connection.";
     case "auth/popup-blocked":          return "Popup was blocked. Please allow popups for this site.";
+    case "auth/invalid-action-code":    return "The reset link is invalid or has expired. Please request a new one.";
+    case "auth/missing-email":          return "Please enter your email address.";
     default:                            return err.message || "An error occurred. Please try again.";
   }
 }

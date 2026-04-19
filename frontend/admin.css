@@ -628,7 +628,7 @@ body {
 .modal-box {
     background: var(--white);
     border-radius: 16px;
-    max-width: 720px;
+    max-width: 860px;
     width: 100%;
     max-height: 88vh;
     overflow-y: auto;
@@ -1163,5 +1163,27 @@ body {
 .btn-inline-reject.active {
     background: var(--red-bg);
     color: var(--red);
+    border-color: var(--red);
+}
+
+/* Inline unpublish button — shown only when plans are published */
+.btn-inline-unpublish {
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1.5px solid #fca5a5;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--red-bg);
+    color: var(--red);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-inline-unpublish:hover {
+    background: var(--red);
+    color: #fff;
     border-color: var(--red);
 }

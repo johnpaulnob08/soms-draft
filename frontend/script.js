@@ -805,12 +805,32 @@ function calcFundTotal() {
 }
 
 function submitStratPlan() {
-    const acronym = document.getElementById('stratAcronym').value.trim();
-    const orgName = document.getElementById('stratOrgFullName').value.trim();
-    if (!acronym || !orgName) {
-        alert('Please fill in the Org Acronym and Complete Name of Organization before continuing.');
+    const acronym  = document.getElementById('stratAcronym').value.trim();
+    const orgName  = document.getElementById('stratOrgFullName').value.trim();
+    const mission  = document.getElementById('stratMission').value.trim();
+    const vision   = document.getElementById('stratVision').value.trim();
+
+    if (!acronym) {
+        alert('Please fill in the Org Acronym before continuing.');
+        document.getElementById('stratAcronym').focus();
         return;
     }
+    if (!orgName) {
+        alert('Please fill in the Complete Name of Organization before continuing.');
+        document.getElementById('stratOrgFullName').focus();
+        return;
+    }
+    if (!mission) {
+        alert('Please fill in the Mission Statement before continuing.');
+        document.getElementById('stratMission').focus();
+        return;
+    }
+    if (!vision) {
+        alert('Please fill in the Vision Statement before continuing.');
+        document.getElementById('stratVision').focus();
+        return;
+    }
+
     saveFormData('strategicPlan');
     goToPage('presidentProfile');
 }
@@ -1031,8 +1051,6 @@ async function openOrgPlansModal(orgName) {
                             <tr>
                                 <th>Target Date</th>
                                 <th>Project / Initiative</th>
-                                <th>Project Head</th>
-                                <th>Budget</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1040,8 +1058,6 @@ async function openOrgPlansModal(orgName) {
                                 <tr>
                                     <td>${r.date || '—'}</td>
                                     <td><strong>${r.projectName}</strong>${r.objectives ? '<br><small style="color:#64748b;">' + r.objectives + '</small>' : ''}</td>
-                                    <td>${r.projectHead || '—'}</td>
-                                    <td>${r.budget || '—'}</td>
                                 </tr>`).join('')}
                         </tbody>
                     </table>
@@ -1114,10 +1130,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
 const STORAGE_KEY_PREFIX = 'sacdev_form_';
 
+function _storageKey(formId) {
+    const email = (window.currentState && currentState.userEmail)
+        || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('sacdev_userEmail'))
+        || 'guest';
+    return STORAGE_KEY_PREFIX + email + '_' + formId;
+}
+
 function saveFormData(formId) {
     const data = collectFormData(formId);
     try {
-        localStorage.setItem(STORAGE_KEY_PREFIX + formId, JSON.stringify(data));
+        localStorage.setItem(_storageKey(formId), JSON.stringify(data));
         showSaveToast('Progress saved!');
     } catch(e) {
         console.warn('localStorage save failed:', e);
@@ -1126,7 +1149,7 @@ function saveFormData(formId) {
 
 function loadFormData(formId) {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY_PREFIX + formId);
+        const raw = localStorage.getItem(_storageKey(formId));
         return raw ? JSON.parse(raw) : null;
     } catch(e) {
         return null;
@@ -1151,10 +1174,22 @@ function submitAndNext(currentForm, nextPage) {
     // Per-form required-field validation before saving and proceeding
     if (currentForm === 'presidentProfile') {
         const required = [
-            { id: 'presFullName',   label: "President's Full Name" },
+            { id: 'presFullName',    label: "President's Full Name" },
             { id: 'presCourseYear', label: "Course and Year" },
+            { id: 'presBirthday',   label: "Birthday" },
+            { id: 'presAge',        label: "Age" },
+            { id: 'presSex',        label: "Sex" },
+            { id: 'presReligion',   label: "Religion" },
             { id: 'presMobile',     label: "Mobile Number" },
             { id: 'presEmail',      label: "Email Address" },
+            { id: 'presIdNumber',   label: "ID Number" },
+            { id: 'presHomeAddress',label: "Complete Home Address" },
+            { id: 'presCityAddress',label: "Complete City Address" },
+            { id: 'presFatherName', label: "Father's Name" },
+            { id: 'presMotherName', label: "Mother's Name" },
+            { id: 'presHsName',     label: "Name of High School" },
+            { id: 'presGsName',     label: "Name of Grade School" },
+            { id: 'presSkills',     label: "Skills, Hobbies and Interests" },
         ];
         for (const f of required) {
             const el = document.getElementById(f.id);
@@ -1184,11 +1219,20 @@ function submitAndNext(currentForm, nextPage) {
     }
     if (currentForm === 'moderatorProfile') {
         const required = [
-            { id: 'modFullName',    label: "Moderator's Full Name" },
-            { id: 'modDesignation', label: "Official University Designation" },
-            { id: 'modDepartment',  label: "Unit / College / Department" },
-            { id: 'modMobile',      label: "Moderator's Mobile Number" },
-            { id: 'modEmail',       label: "Moderator's Email" },
+            { id: 'modFullName',       label: "Moderator's Full Name" },
+            { id: 'modNominatingOrg',  label: "Nominating Organization" },
+            { id: 'modBirthday',       label: "Birthday" },
+            { id: 'modAge',            label: "Age" },
+            { id: 'modSex',            label: "Sex" },
+            { id: 'modReligion',       label: "Religion" },
+            { id: 'modDesignation',    label: "Official University Designation" },
+            { id: 'modDepartment',     label: "Unit / College / Department" },
+            { id: 'modStatus',         label: "Status" },
+            { id: 'modYearsService',   label: "Years of Service in the University" },
+            { id: 'modMobile',         label: "Moderator's Mobile Number" },
+            { id: 'modEmail',          label: "Moderator's Email" },
+            { id: 'modCityAddress',    label: "Complete City Address" },
+            { id: 'modSpecialSkills',  label: "Special Skills or Interests" },
         ];
         for (const f of required) {
             const el = document.getElementById(f.id);
@@ -1197,6 +1241,11 @@ function submitAndNext(currentForm, nextPage) {
                 if (el) el.focus();
                 return;
             }
+        }
+        const sig = document.getElementById('modSignaturePreview');
+        if (!sig || !sig.src || sig.classList.contains('hidden')) {
+            alert("Please upload the Moderator's E-Signature before proceeding.");
+            return;
         }
     }
     saveFormData(currentForm);
@@ -1753,9 +1802,19 @@ async function submitAllForms() {
     }
     saveFormData('gradeAndDocs');
 
-    // Build submission payload — include strategic plan table data for publish feature
-    const _spData = loadFormData('strategicPlan') || {};
+    // Build submission payload — include ALL form data for full admin visibility
+    const _spData  = loadFormData('strategicPlan')     || {};
+    const _presData = loadFormData('presidentProfile') || {};
+    const _modData  = loadFormData('moderatorProfile') || {};
+    const _offData  = loadFormData('orgOfficers')      || {};
+    const _memData  = loadFormData('orgMembers')       || {};
+    const _docData  = loadFormData('gradeAndDocs')     || {};
+
+    // Helper to pull a field value from a form data object
+    const fv = (obj, id) => (obj[id] || '').toString().trim();
+
     const submission = {
+        // ── Core / org info ──────────────────────────────────
         org:             currentState.selectedOrg  || currentState.orgName || '—',
         orgName:         currentState.orgName      || currentState.selectedOrg || '—',
         orgEmail:        currentState.orgEmail     || '—',
@@ -1763,12 +1822,70 @@ async function submitAllForms() {
         council:         currentState.selectedCouncil || '—',
         cluster:         document.getElementById('infoCluster')?.value || currentState.orgCluster || '—',
         yearEstablished: currentState.yearEstablished || '',
-        president:       document.getElementById('presFullName')?.value?.trim() || currentState.presidentName || '—',
-        email:           currentState.userEmail || '—',
-        presidentMobile: currentState.presidentMobile || '—',
-        presidentEmail:  currentState.presidentEmail  || '—',
-        moderatorName:   currentState.moderatorName   || '—',
-        // Strategic plan fields (for publish feature)
+
+        // ── President profile (B-2) — all fields ─────────────
+        president:         document.getElementById('presFullName')?.value?.trim() || currentState.presidentName || '—',
+        presFullName:      fv(_presData, 'presFullName')      || document.getElementById('presFullName')?.value?.trim()      || '',
+        presCourseYear:    fv(_presData, 'presCourseYear')    || document.getElementById('presCourseYear')?.value?.trim()    || '',
+        presBirthday:      fv(_presData, 'presBirthday')      || document.getElementById('presBirthday')?.value?.trim()      || '',
+        presAge:           fv(_presData, 'presAge')           || document.getElementById('presAge')?.value?.trim()           || '',
+        presSex:           fv(_presData, 'presSex')           || document.getElementById('presSex')?.value?.trim()           || '',
+        presReligion:      fv(_presData, 'presReligion')      || document.getElementById('presReligion')?.value?.trim()      || '',
+        email:             currentState.userEmail || '—',
+        presidentMobile:   currentState.presidentMobile || fv(_presData, 'presMobile') || '—',
+        presidentEmail:    currentState.presidentEmail  || fv(_presData, 'presEmail')  || '—',
+        presMobile:        fv(_presData, 'presMobile')        || document.getElementById('presMobile')?.value?.trim()        || '',
+        presEmail:         fv(_presData, 'presEmail')         || document.getElementById('presEmail')?.value?.trim()         || '',
+        presIdNumber:      fv(_presData, 'presIdNumber')      || document.getElementById('presIdNumber')?.value?.trim()      || '',
+        presLandlineCity:  fv(_presData, 'presLandlineCity')  || document.getElementById('presLandlineCity')?.value?.trim()  || '',
+        presLandlineProv:  fv(_presData, 'presLandlineProv')  || document.getElementById('presLandlineProv')?.value?.trim()  || '',
+        presFacebook:      fv(_presData, 'presFacebook')      || document.getElementById('presFacebook')?.value?.trim()      || '',
+        presHomeAddress:   fv(_presData, 'presHomeAddress')   || document.getElementById('presHomeAddress')?.value?.trim()   || '',
+        presCityAddress:   fv(_presData, 'presCityAddress')   || document.getElementById('presCityAddress')?.value?.trim()   || '',
+        presFatherName:    fv(_presData, 'presFatherName')    || document.getElementById('presFatherName')?.value?.trim()    || '',
+        presFatherOcc:     fv(_presData, 'presFatherOccupation') || document.getElementById('presFatherOccupation')?.value?.trim() || '',
+        presFatherMobile:  fv(_presData, 'presFatherMobile')  || document.getElementById('presFatherMobile')?.value?.trim()  || '',
+        presMotherName:    fv(_presData, 'presMotherName')    || document.getElementById('presMotherName')?.value?.trim()    || '',
+        presMotherOcc:     fv(_presData, 'presMotherOccupation') || document.getElementById('presMotherOccupation')?.value?.trim() || '',
+        presMotherMobile:  fv(_presData, 'presMotherMobile')  || document.getElementById('presMotherMobile')?.value?.trim()  || '',
+        presGuardianName:  fv(_presData, 'presGuardianName')  || document.getElementById('presGuardianName')?.value?.trim()  || '',
+        presGuardianRel:   fv(_presData, 'presGuardianRelation') || document.getElementById('presGuardianRelation')?.value?.trim() || '',
+        presGuardianMobile:fv(_presData, 'presGuardianMobile')|| document.getElementById('presGuardianMobile')?.value?.trim() || '',
+        presSiblings:      fv(_presData, 'presSiblings')      || document.getElementById('presSiblings')?.value?.trim()      || '',
+        presHsName:        fv(_presData, 'presHsName')        || document.getElementById('presHsName')?.value?.trim()        || '',
+        presHsAddress:     fv(_presData, 'presHsAddress')     || document.getElementById('presHsAddress')?.value?.trim()     || '',
+        presHsGrad:        fv(_presData, 'presHsGrad')        || document.getElementById('presHsGrad')?.value?.trim()        || '',
+        presGsName:        fv(_presData, 'presGsName')        || document.getElementById('presGsName')?.value?.trim()        || '',
+        presGsAddress:     fv(_presData, 'presGsAddress')     || document.getElementById('presGsAddress')?.value?.trim()     || '',
+        presGsGrad:        fv(_presData, 'presGsGrad')        || document.getElementById('presGsGrad')?.value?.trim()        || '',
+        presScholarship:   fv(_presData, 'presScholarship')   || document.getElementById('presScholarship')?.value?.trim()   || '',
+        presScholarshipYr: fv(_presData, 'presScholarshipYear') || document.getElementById('presScholarshipYear')?.value?.trim() || '',
+        presSkills:        fv(_presData, 'presSkills')        || document.getElementById('presSkills')?.value?.trim()        || '',
+
+        // ── Moderator profile (B-5.1) — all fields ───────────
+        moderatorName:     currentState.moderatorName || fv(_modData, 'modFullName') || '—',
+        modFullName:       fv(_modData, 'modFullName')       || document.getElementById('modFullName')?.value?.trim()       || '',
+        modNominatingOrg:  fv(_modData, 'modNominatingOrg')  || document.getElementById('modNominatingOrg')?.value?.trim()  || '',
+        modBirthday:       fv(_modData, 'modBirthday')       || document.getElementById('modBirthday')?.value?.trim()       || '',
+        modAge:            fv(_modData, 'modAge')            || document.getElementById('modAge')?.value?.trim()            || '',
+        modSex:            fv(_modData, 'modSex')            || document.getElementById('modSex')?.value?.trim()            || '',
+        modReligion:       fv(_modData, 'modReligion')       || document.getElementById('modReligion')?.value?.trim()       || '',
+        modDesignation:    fv(_modData, 'modDesignation')    || document.getElementById('modDesignation')?.value?.trim()    || '',
+        modDepartment:     fv(_modData, 'modDepartment')     || document.getElementById('modDepartment')?.value?.trim()     || '',
+        modStatus:         fv(_modData, 'modStatus')         || document.getElementById('modStatus')?.value?.trim()         || '',
+        modYearsService:   fv(_modData, 'modYearsService')   || document.getElementById('modYearsService')?.value?.trim()   || '',
+        modMobile:         fv(_modData, 'modMobile')         || document.getElementById('modMobile')?.value?.trim()         || '',
+        modEmail:          fv(_modData, 'modEmail')          || document.getElementById('modEmail')?.value?.trim()          || '',
+        modLandline:       fv(_modData, 'modLandline')       || document.getElementById('modLandline')?.value?.trim()       || '',
+        modFacebook:       fv(_modData, 'modFacebook')       || document.getElementById('modFacebook')?.value?.trim()       || '',
+        modCityAddress:    fv(_modData, 'modCityAddress')    || document.getElementById('modCityAddress')?.value?.trim()    || '',
+        modSpecialSkills:  fv(_modData, 'modSpecialSkills')  || document.getElementById('modSpecialSkills')?.value?.trim()  || '',
+        modWasModBefore:   fv(_modData, 'modWasModBefore')   || document.getElementById('modWasModBefore')?.value?.trim()   || '',
+        modPrevOrgName:    fv(_modData, 'modPrevOrgName')    || document.getElementById('modPrevOrgName')?.value?.trim()    || '',
+        modIsModOfNom:     fv(_modData, 'modIsModOfNominating') || document.getElementById('modIsModOfNominating')?.value?.trim() || '',
+        modYearsAsModNom:  fv(_modData, 'modYearsAsModNominating') || document.getElementById('modYearsAsModNominating')?.value?.trim() || '',
+
+        // ── Strategic plan (B-1) ─────────────────────────────
         stratAcronym:    _spData.stratAcronym    || '',
         stratOrgFullName:_spData.stratOrgFullName || '',
         stratMission:    _spData.stratMission    || '',
@@ -1776,6 +1893,28 @@ async function submitAllForms() {
         'table_bodyOrgDev':   _spData['__table_bodyOrgDev']   || [],
         'table_bodyStudServ': _spData['__table_bodyStudServ']  || [],
         'table_bodyCommInv':  _spData['__table_bodyCommInv']   || [],
+
+        // ── Officers & Members counts ────────────────────────
+        officerCount: (() => {
+            const tb = document.getElementById('officersTableBody');
+            let n = 0;
+            if (tb) tb.querySelectorAll('tr').forEach(tr => {
+                const inp = tr.querySelectorAll('input');
+                if (inp[0]?.value.trim() && inp[1]?.value.trim()) n++;
+            });
+            return n;
+        })(),
+        memberCount: (() => {
+            const tb = document.getElementById('membersTableBody');
+            let n = 0;
+            if (tb) tb.querySelectorAll('tr').forEach(tr => {
+                if (tr.querySelectorAll('input')[0]?.value.trim()) n++;
+            });
+            return n;
+        })(),
+
+        // ── Documents ────────────────────────────────────────
+        constitutionFileName: document.getElementById('constitutionFileName')?.textContent?.trim() || '',
         submittedAt: new Date().toLocaleString('en-PH')
     };
 
@@ -1797,8 +1936,31 @@ async function submitAllForms() {
             throw new Error(err.error || 'Server error');
         }
 
-        alert('All requirements have been submitted successfully!\n\nPlease ensure you have completed all forms and uploaded all required documents. OSA-SACDEV will evaluate your re-registration requirements before granting recognition.');
-        goToPage('dashboard');
+        const result = await res.json();
+
+        // Navigate to application status page
+        const statusData = {
+            found:       true,
+            status:      'pending',
+            org:         submission.org,
+            orgName:     submission.orgName,
+            email:       submission.email,
+            orgEmail:    submission.orgEmail,
+            submittedAt: submission.submittedAt
+        };
+
+        if (window.populateStatusPage) window.populateStatusPage(statusData);
+
+        // Store the submission ID so refresh can find it later
+        try { sessionStorage.setItem('sacdev_submissionId', result.id || ''); } catch(e) {}
+        try { sessionStorage.setItem('sacdev_currentPage', 'applicationStatus'); } catch(e) {}
+
+        if (window.goToPage) {
+            window.goToPage('applicationStatus');
+        } else {
+            alert('All requirements have been submitted successfully!\n\nOSA-SACDEV will evaluate your re-registration requirements before granting recognition.');
+            goToPage('dashboard');
+        }
     } catch (e) {
         console.error('Submission failed:', e);
         alert('Submission failed: ' + e.message + '\n\nPlease check your connection and try again.');

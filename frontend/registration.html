@@ -1186,6 +1186,52 @@
         </div>
     </div>
 
+    <!-- APPLICATION STATUS PAGE -->
+    <div id="applicationStatus" class="page hidden">
+        <div class="container-sm">
+            <div class="box" style="text-align:center;">
+                <h1>Application Status</h1>
+                <p>Your re-registration requirements have been submitted to OSA-SACDEV.</p>
+            </div>
+
+            <div id="appStatusCard" style="
+                background:#fff; border:1.5px solid #e2e8f0; border-radius:14px;
+                padding:28px 24px; margin-bottom:20px;
+            ">
+                <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px;">
+                    <div id="appStatusIcon" style="font-size:32px; line-height:1;">Status:</div>
+                    <div>
+                        <div id="appStatusOrgName" style="font-size:17px; font-weight:700; color:#0f172a; margin-bottom:4px;"></div>
+                        <div id="appStatusBadge" style="
+                            display:inline-block; padding:4px 14px; border-radius:20px;
+                            font-size:13px; font-weight:700; background:#fef3c7; color:#b45309;
+                            border:1.5px solid #fde68a;
+                        "> Pending</div>
+                    </div>
+                </div>
+                <div style="border-top:1px solid #f1f5f9; padding-top:14px; font-size:13px; color:#64748b; line-height:1.7;">
+                    <div><strong style="color:#1e293b;">Submitted:</strong> <span id="appStatusDate">—</span></div>
+                    <div><strong style="color:#1e293b;">Email:</strong> <span id="appStatusEmail">—</span></div>
+                </div>
+            </div>
+
+            <div style="
+                background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px;
+                padding:16px 20px; margin-bottom:24px; font-size:13px; color:#475569; line-height:1.6;
+            ">
+                <strong style="color:#0f172a;">What happens next?</strong><br>
+                OSA-SACDEV will review your submitted requirements and update the status below.
+                You will be notified once a decision has been made.
+                Come back to this page anytime to check for updates.
+            </div>
+
+            <div class="nav" style="justify-content:center;">
+                <button class="btn btn-secondary" onclick="window.location.href='index.html'">← Back to Home</button>
+                <button class="btn btn-primary" onclick="checkApplicationStatus()" style="margin-left:12px;">Refresh Status</button>
+            </div>
+        </div>
+    </div>
+
     <!-- GLOBAL FORM SIDE NAVIGATION (shown on all student form pages) -->
     <div id="formSidenav" class="form-sidenav hidden">
         <div class="form-sidenav-inner">
@@ -1230,29 +1276,99 @@
     <script type="module" src="firebase-auth.js"></script>
     <script src="script.js"></script>
     <script>
-        // goToPage on registration.html handles all the registration flow internally
-        // Cross-page navigation:
-        //   goToPage('dashboard') → index.html
-        //   goToPage('loginPage') → login.html
-        //   After logout → index.html
+        // ── Polling helpers — defined FIRST so everything below can reference them ────
+        let _statusPollInterval = null;
 
-        const _origGoToPage = window.goToPage;
+        function _startStatusPolling() {
+            if (_statusPollInterval) return;
+            _statusPollInterval = setInterval(function() {
+                var statusPage = document.getElementById('applicationStatus');
+                if (!statusPage || statusPage.classList.contains('hidden')) {
+                    _stopStatusPolling(); return;
+                }
+                var email = (window.currentState && currentState.userEmail)
+                    || sessionStorage.getItem('sacdev_userEmail');
+                if (!email) return;
+                fetch('/submission-status?email=' + encodeURIComponent(email))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) { if (data && data.found) populateStatusPage(data); })
+                    .catch(function() {});
+            }, 30000);
+        }
 
-        // Wrap goToPage to intercept cross-page navigations
-        const _regGoToPage = function(pageName) {
-            if (pageName === 'dashboard') { window.location.href = 'index.html'; return; }
-            if (pageName === 'loginPage') { window.location.href = 'login.html'; return; }
-            // All other pages handled internally by script.js
-            if (_origGoToPage) _origGoToPage(pageName);
+        function _stopStatusPolling() {
+            if (_statusPollInterval) { clearInterval(_statusPollInterval); _statusPollInterval = null; }
+        }
+
+        // ── Show the applicationStatus page (no dependency on goToPage) ──────────────
+        function _showStatusPage() {
+            document.querySelectorAll('.page').forEach(function(p) { p.classList.add('hidden'); });
+            var statusPage = document.getElementById('applicationStatus');
+            if (statusPage) statusPage.classList.remove('hidden');
+            var sn = document.getElementById('formSidenav');
+            if (sn) sn.classList.add('hidden');
+            document.body.classList.remove('has-form-sidenav');
+            window.scrollTo(0, 0);
+        }
+
+        // ── Status page data binding ──────────────────────────────────────────────────
+        function populateStatusPage(data) {
+            var statusMap = {
+                approved: { label: '✓ Approved', bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', icon: '✅' },
+                rejected: { label: '✕ Rejected', bg: '#fef2f2', color: '#dc2626', border: '#fecaca', icon: '❌' },
+                pending:  { label: '⏳ Pending',  bg: '#fef3c7', color: '#b45309', border: '#fde68a', icon: '⏳' }
+            };
+            var st = statusMap[data.status] || statusMap.pending;
+            var orgNameEl = document.getElementById('appStatusOrgName');
+            var badgeEl   = document.getElementById('appStatusBadge');
+            var iconEl    = document.getElementById('appStatusIcon');
+            var dateEl    = document.getElementById('appStatusDate');
+            var emailEl   = document.getElementById('appStatusEmail');
+            if (orgNameEl) orgNameEl.textContent = data.org || data.orgName || '—';
+            if (iconEl)    iconEl.textContent = st.icon;
+            if (badgeEl) {
+                badgeEl.textContent      = st.label;
+                badgeEl.style.background = st.bg;
+                badgeEl.style.color      = st.color;
+                badgeEl.style.border     = '1.5px solid ' + st.border;
+            }
+            if (dateEl)  dateEl.textContent = data.submittedAt || data.createdAt || '—';
+            if (emailEl) emailEl.textContent = data.email || data.orgEmail || '—';
+        }
+
+        window.checkApplicationStatus = function() {
+            var email = (window.currentState && currentState.userEmail)
+                || sessionStorage.getItem('sacdev_userEmail');
+            if (!email) { alert('You must be logged in to check your application status.'); return; }
+            var btn = event && event.target;
+            if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+            fetch('/submission-status?email=' + encodeURIComponent(email))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data && data.found) { populateStatusPage(data); }
+                    else { alert('No submission found for this account.'); }
+                })
+                .catch(function() { alert('Could not reach the server. Please try again.'); })
+                .finally(function() {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Refresh Status'; }
+                });
         };
 
-        // Override after script.js defines it
-        window.addEventListener('DOMContentLoaded', () => {
+        // ── Logout ────────────────────────────────────────────────────────────────────
+        function handleLogout() {
+            _stopStatusPolling();
+            sessionStorage.removeItem('sacdev_userEmail');
+            if (window.handleSignOut) { window.handleSignOut(); return; }
+            window.location.href = 'index.html';
+        }
+
+        // ── DOMContentLoaded — runs after script.js has already executed ──────────────
+        window.addEventListener('DOMContentLoaded', function() {
             // Restore logged-in navbar state if session exists
-            const savedEmail = sessionStorage.getItem('sacdev_userEmail');
+            var savedEmail = sessionStorage.getItem('sacdev_userEmail');
             if (savedEmail) {
-                const navUser  = document.getElementById('navbarUser');
-                const navEmail = document.getElementById('navbarEmail');
+                var navUser  = document.getElementById('navbarUser');
+                var navEmail = document.getElementById('navbarEmail');
                 if (navUser)  navUser.classList.remove('hidden');
                 if (navEmail) navEmail.textContent = savedEmail;
                 if (window.currentState) {
@@ -1261,38 +1377,52 @@
                 }
             }
 
-            // Re-wrap goToPage now that script.js has loaded
-            const scriptGoToPage = window.goToPage;
+            // Wrap the goToPage that script.js defined to intercept cross-page routes
+            var _scriptGoToPage = window.goToPage;
             window.goToPage = function(pageName) {
-                if (pageName === 'dashboard') { window.location.href = 'index.html'; return; }
-                if (pageName === 'loginPage') { window.location.href = 'login.html'; return; }
-                if (scriptGoToPage) scriptGoToPage(pageName);
+                if (pageName === 'dashboard')         { window.location.href = 'index.html'; return; }
+                if (pageName === 'loginPage')         { window.location.href = 'login.html'; return; }
+                if (pageName === 'applicationStatus') { _showStatusPage(); _startStatusPolling(); return; }
+                _stopStatusPolling();
+                if (_scriptGoToPage) _scriptGoToPage(pageName);
             };
 
-            // Registration pages that live on this file
-            const regPages = [
+            // Pages that live on this file
+            var regPages = [
                 'login','councilSelect','orgSelect','guidelines','orgInfo',
                 'strategicPlan','presidentProfile','orgOfficers','orgMembers',
-                'moderatorProfile','gradeAndDocs','submissionSummary'
+                'moderatorProfile','gradeAndDocs','submissionSummary','applicationStatus'
             ];
 
-            // Restore last visited page; fall back to org-type selector
-            let startPage = 'login';
+            // Restore last visited page
+            var startPage = 'login';
             try {
-                const saved = sessionStorage.getItem('sacdev_currentPage');
-                if (saved && regPages.includes(saved) && document.getElementById(saved)) {
+                var saved = sessionStorage.getItem('sacdev_currentPage');
+                if (saved && regPages.indexOf(saved) !== -1 && document.getElementById(saved)) {
                     startPage = saved;
                 }
             } catch(e) {}
 
-            window.goToPage(startPage);
+            // If user is logged in, check whether they already submitted
+            var emailOnLoad = sessionStorage.getItem('sacdev_userEmail');
+            if (emailOnLoad && startPage !== 'applicationStatus') {
+                fetch('/submission-status?email=' + encodeURIComponent(emailOnLoad))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data && data.found) {
+                            populateStatusPage(data);
+                            _showStatusPage();
+                            _startStatusPolling();
+                            try { sessionStorage.setItem('sacdev_currentPage', 'applicationStatus'); } catch(e) {}
+                        } else {
+                            window.goToPage(startPage);
+                        }
+                    })
+                    .catch(function() { window.goToPage(startPage); });
+            } else {
+                window.goToPage(startPage);
+            }
         });
-
-        function handleLogout() {
-            sessionStorage.removeItem('sacdev_userEmail');
-            if (window.handleSignOut) { window.handleSignOut(); return; }
-            window.location.href = 'index.html';
-        }
     </script>
 </body>
 </html>
