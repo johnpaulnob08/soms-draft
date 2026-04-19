@@ -280,6 +280,50 @@ app.get('/org-plans/:orgName', async (req, res) => {
 });
 
 
+// ── GET SUBMISSION STATUS BY EMAIL (student-facing) ──────────────────────────
+// Returns the status of the most recent submission for a given email.
+app.get('/submission-status', async (req, res) => {
+  try {
+    const email = (req.query.email || '').trim();
+    if (!email) return res.status(400).json({ error: 'email query parameter is required' });
+
+    // Search by the user email field first, then by orgEmail
+    let snapshot = await db.collection('submissions')
+      .where('email', '==', email)
+      .orderBy('createdAt', 'desc')
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      snapshot = await db.collection('submissions')
+        .where('orgEmail', '==', email)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+    }
+
+    if (snapshot.empty) return res.json({ found: false });
+
+    const doc  = snapshot.docs[0];
+    const data = doc.data();
+
+    res.json({
+      found:       true,
+      id:          doc.id,
+      status:      data.status || 'pending',
+      org:         data.org     || data.orgName || '—',
+      orgName:     data.orgName || data.org     || '—',
+      email:       data.email   || data.orgEmail || email,
+      orgEmail:    data.orgEmail || '',
+      submittedAt: data.submittedAt || data.createdAt?.toDate?.()?.toLocaleString('en-PH') || '—'
+    });
+  } catch (err) {
+    console.error('Submission-status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ── FALLBACK SPA ROUTE ────────────────────────────────────────────────────────
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
