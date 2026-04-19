@@ -769,25 +769,78 @@
             </div>
 
             <div class="strat-section">
-                <div class="guidelines-section-title">LIST OF OFFICERS</div>
+                <div class="guidelines-section-title" id="officerCardTitle">ADD OFFICER</div>
+                <p class="guidelines-body" style="margin-bottom:16px;">Fill in the details below and click <strong>Add to List</strong> to add an officer. The President row is pre-filled from your profile.</p>
+
+                <!-- Card-style officer input -->
+                <div class="officer-input-card" id="officerInputCard">
+                    <div class="officer-card-row">
+                        <div class="officer-card-field">
+                            <label class="officer-card-label">Position <span class="required">*</span></label>
+                            <input type="text" id="newOfficerPosition" class="form-input" placeholder="e.g. Vice President">
+                        </div>
+                        <div class="officer-card-field">
+                            <label class="officer-card-label">Student ID <span class="required">*</span></label>
+                            <input type="text" id="newOfficerStudentId" class="form-input" placeholder="e.g. 202100001">
+                        </div>
+                    </div>
+                    <div class="officer-card-row">
+                        <div class="officer-card-field" style="flex:2;">
+                            <label class="officer-card-label">Full Name <span class="required">*</span> <span class="th-hint">(Last Name, First Name, MI)</span></label>
+                            <input type="text" id="newOfficerName" class="form-input" placeholder="e.g. Dela Cruz, Juan A.">
+                        </div>
+                        <div class="officer-card-field">
+                            <label class="officer-card-label">Course and Year</label>
+                            <input type="text" id="newOfficerCourse" class="form-input" placeholder="e.g. BS CS, 3rd Year">
+                        </div>
+                    </div>
+                    <div class="officer-card-row">
+                        <div class="officer-card-field">
+                            <label class="officer-card-label">Sem 1 QPI</label>
+                            <input type="number" id="newOfficerQpi1" class="form-input" placeholder="0.00" step="0.01" min="0" max="4">
+                        </div>
+                        <div class="officer-card-field">
+                            <label class="officer-card-label">Sem 2 QPI</label>
+                            <input type="number" id="newOfficerQpi2" class="form-input" placeholder="0.00" step="0.01" min="0" max="4">
+                        </div>
+                        <div class="officer-card-field">
+                            <label class="officer-card-label">Int. QPI</label>
+                            <input type="number" id="newOfficerQpiInt" class="form-input" placeholder="0.00" step="0.01" min="0" max="4">
+                        </div>
+                        <div class="officer-card-field">
+                            <label class="officer-card-label">Mobile Number</label>
+                            <input type="tel" id="newOfficerMobile" class="form-input" placeholder="09XXXXXXXXX">
+                        </div>
+                    </div>
+                    <div class="officer-card-actions">
+                        <button id="officerCardAddBtn"    class="btn btn-primary"   onclick="addOfficerFromCard()">+ Add to List</button>
+                        <button id="officerCardSaveBtn"   class="btn btn-primary"   onclick="addOfficerFromCard()" style="display:none;">✓ Save Changes</button>
+                        <button id="officerCardCancelBtn" class="btn btn-secondary" onclick="clearOfficerCard()"   style="display:none;">✕ Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strat-section">
+                <div class="guidelines-section-title">LIST OF OFFICERS <span id="officerCountBadge" class="officer-count-badge">0 added</span></div>
                 <div class="strat-table-wrapper">
-                    <table class="strat-table">
+                    <table class="strat-table" id="officersDisplayTable">
                         <thead>
                             <tr>
                                 <th style="min-width:120px;">Position</th>
-                                <th style="min-width:180px;">Name of Officer <span class="th-hint">(Last Name, First Name, MI)</span></th>
+                                <th style="min-width:100px;">Student ID</th>
+                                <th style="min-width:180px;">Name of Officer</th>
                                 <th style="min-width:140px;">Course and Year</th>
-                                <th style="min-width:75px;">Sem 1 QPI</th>
-                                <th style="min-width:75px;">Sem 2 QPI</th>
-                                <th style="min-width:75px;">Int. QPI</th>
-                                <th style="min-width:120px;">Mobile Number</th>
+                                <th style="min-width:65px;">Sem 1</th>
+                                <th style="min-width:65px;">Sem 2</th>
+                                <th style="min-width:65px;">Int.</th>
+                                <th style="min-width:120px;">Mobile</th>
                                 <th style="width:40px;"></th>
                             </tr>
                         </thead>
                         <tbody id="officersTableBody"></tbody>
                     </table>
                 </div>
-                <button class="btn-add-row" onclick="addOfficerRow()">+ Add Officer</button>
+                <p id="officersEmptyMsg" class="officer-empty-msg">No officers added yet. Use the form above to add officers.</p>
             </div>
 
             <div class="nav">
@@ -1316,7 +1369,7 @@
             var statusMap = {
                 approved: { label: '✓ Approved', bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', icon: '✅' },
                 rejected: { label: '✕ Rejected', bg: '#fef2f2', color: '#dc2626', border: '#fecaca', icon: '❌' },
-                pending:  { label: '⏳ Pending',  bg: '#fef3c7', color: '#b45309', border: '#fde68a', icon: '⏳' }
+                pending:  { label: 'Pending',  bg: '#fef3c7', color: '#b45309', border: '#fde68a', icon: '' }
             };
             var st = statusMap[data.status] || statusMap.pending;
             var orgNameEl = document.getElementById('appStatusOrgName');

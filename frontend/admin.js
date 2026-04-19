@@ -94,6 +94,7 @@ const CLUSTERS = {
 };
 
 let allSubmissions = [];
+let allConflicts   = [];
 let reportCharts   = {};
 
 const ADMIN_EMAIL    = 'sacdevAdmin@xu.edu.ph';
@@ -155,6 +156,7 @@ async function initAdminDashboard() {
     renderStats();
     renderTable(allSubmissions);
     renderClusterAccordion();
+    await loadAndRenderConflicts();
 }
 
 function renderStats() {
@@ -162,9 +164,16 @@ function renderStats() {
     const approved = allSubmissions.filter(s => s.status === 'approved').length;
     const pending  = allSubmissions.filter(s => s.status === 'pending' || !s.status).length;
 
-    animateCount('statTotal',    total);
-    animateCount('statComplete', approved);
-    animateCount('statPending',  pending);
+    animateCount('statTotal',     total);
+    animateCount('statComplete',  approved);
+    animateCount('statPending',   pending);
+    animateCount('statConflicts', allConflicts.length);
+
+    // Highlight conflict stat card if conflicts exist
+    const conflictCard = document.getElementById('conflictStatCard');
+    if (conflictCard) {
+        conflictCard.classList.toggle('has-conflicts', allConflicts.length > 0);
+    }
 }
 
 function animateCount(id, target) {
@@ -197,6 +206,9 @@ function renderTable(submissions) {
         );
         tr.setAttribute('data-id', s.id);
 
+        // Check if this org has conflicts
+        const hasConflict = allConflicts.some(c => c.submissionId1 === s.id || c.submissionId2 === s.id);
+
         tr.addEventListener('click', (e) => {
             if (e.target.closest('button')) return;
             openDetailModal(s);
@@ -204,7 +216,10 @@ function renderTable(submissions) {
 
         tr.innerHTML = `
             <td>${i + 1}</td>
-            <td class="org-name-cell">${s.org || s.orgName || '—'}</td>
+            <td class="org-name-cell">
+                ${s.org || s.orgName || '—'}
+                ${hasConflict ? `<span class="table-conflict-badge">⚠ Conflict Found</span>` : ''}
+            </td>
             <td>${s.president || '—'}</td>
             <td class="email-cell">${s.orgEmail || s.email || '—'}</td>
             <td class="status-actions-cell">
@@ -270,9 +285,11 @@ function renderClusterAccordion() {
                     ${orgs.map(org => {
                         const sub = submissionMap[org];
                         if (sub) {
+                            const hasConflict = allConflicts.some(c => c.submissionId1 === sub.id || c.submissionId2 === sub.id);
                             return `<li class="cluster-org-item has-submission" onclick="openDetailModal(${JSON.stringify(sub).replace(/"/g, '&quot;')})">
                                 <span class="org-sub-dot"></span>
                                 <span style="flex:1;">${org}</span>
+                                ${hasConflict ? `<span class="cluster-conflict-badge">⚠ Conflict</span>` : ''}
                                 ${statusBadge(sub.status)}
                                 <span class="cluster-org-arrow">›</span>
                             </li>`;
@@ -292,6 +309,108 @@ function renderClusterAccordion() {
 function toggleCluster(headerEl) {
     const item = headerEl.closest('.cluster-item');
     item.classList.toggle('open');
+}
+
+// ════════════════════════════════════════════════
+// OFFICER CONFLICTS
+// ════════════════════════════════════════════════
+
+async function loadAndRenderConflicts() {
+    const loadingEl  = document.getElementById('conflictsLoading');
+    const noneEl     = document.getElementById('conflictsNone');
+    const tableEl    = document.getElementById('conflictsTable');
+    const tbody      = document.getElementById('conflictsTableBody');
+    const badge      = document.getElementById('conflictCountBadge');
+
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (noneEl)    noneEl.style.display    = 'none';
+    if (tableEl)   tableEl.style.display   = 'none';
+
+    try {
+        const res = await fetch('/conflicts');
+        if (!res.ok) throw new Error('Failed to fetch conflicts');
+        allConflicts = await res.json();
+    } catch (e) {
+        console.error('Conflict fetch error:', e);
+        allConflicts = [];
+    }
+
+    if (loadingEl) loadingEl.style.display = 'none';
+
+    // Update stat card
+    animateCount('statConflicts', allConflicts.length);
+    const conflictCard = document.getElementById('conflictStatCard');
+    if (conflictCard) conflictCard.classList.toggle('has-conflicts', allConflicts.length > 0);
+
+    if (allConflicts.length === 0) {
+        if (noneEl) noneEl.style.display = 'block';
+        if (badge)  badge.style.display  = 'none';
+        return;
+    }
+
+    // Update badge
+    if (badge) {
+        badge.textContent = allConflicts.length + ' conflict' + (allConflicts.length > 1 ? 's' : '');
+        badge.style.display = 'inline-block';
+    }
+
+    tbody.innerHTML = '';
+    allConflicts.forEach((c, i) => {
+        const notified = c.notified === true;
+        const tr = document.createElement('tr');
+        tr.className = 'conflict-row';
+        tr.innerHTML = `
+            <td>${i + 1}</td>
+            <td><span class="conflict-id-chip">${c.studentId || '—'}</span></td>
+            <td><strong>${c.studentName || '—'}</strong></td>
+            <td>${c.orgName1 || '—'}</td>
+            <td><span class="conflict-pos-badge">${c.position1 || '—'}</span></td>
+            <td>${c.orgName2 || '—'}</td>
+            <td><span class="conflict-pos-badge">${c.position2 || '—'}</span></td>
+            <td style="white-space:nowrap;font-size:12px;color:#64748b;">${c.createdAt || '—'}</td>
+            <td>
+                ${notified
+                    ? `<span class="conflict-notified-badge">✓ Notified</span>`
+                    : `<button class="btn-notify-conflict" onclick="notifyConflict('${c.id}', this)">
+                           📧 Notify Orgs
+                       </button>`
+                }
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (tableEl) tableEl.style.display = '';
+}
+
+async function notifyConflict(conflictId, btnEl) {
+    if (!confirm('Send email notification to both involved organizations about this officer conflict?')) return;
+
+    if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = 'Sending…';
+    }
+
+    try {
+        const res = await fetch(`/conflicts/${conflictId}/notify`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server error');
+
+        // Replace button with notified badge
+        if (btnEl) {
+            const span = document.createElement('span');
+            span.className = 'conflict-notified-badge';
+            span.textContent = '✓ Notified';
+            btnEl.replaceWith(span);
+        }
+        alert('Email notifications sent successfully to the involved organizations.');
+    } catch (e) {
+        alert('Failed to send notification: ' + e.message);
+        if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.textContent = '📧 Notify Orgs';
+        }
+    }
 }
 
 function openDetailModal(submission) {
@@ -458,9 +577,72 @@ function openDetailModal(submission) {
             <!-- ── Officers (B-3) ────────────────────────────── -->
             <div class="modal-section">
                 <div class="modal-section-title">Officers — Form B-3</div>
-                <div class="modal-grid-2">
-                    ${f('Officers Listed', officerCount !== '—' ? `${officerCount} officer(s)` : null)}
-                </div>
+                ${(() => {
+                    const officers = s.officers || [];
+                    if (officers.length === 0) {
+                        return `<div class="modal-grid-2">${f('Officers Listed', officerCount !== '—' ? `${officerCount} officer(s)` : null)}</div>`;
+                    }
+                    // Find conflicts involving this submission
+                    const conflictsForOrg = allConflicts.filter(c =>
+                        c.submissionId1 === s.id || c.submissionId2 === s.id
+                    );
+                    const conflictStudentIds = new Set(conflictsForOrg.map(c => c.studentId));
+                    const EXEC = ['president','vice president','secretary','treasurer','auditor'];
+
+                    const rows = officers.map(o => {
+                        const isConflict = o.studentId && conflictStudentIds.has(o.studentId.trim());
+                        const isExec = EXEC.includes((o.position || '').toLowerCase().trim());
+                        return `<tr style="${isConflict ? 'background:#fef2f2;' : ''}">
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;">
+                                ${isExec ? `<span style="display:inline-block;background:#1a2f5e;color:#fff;font-size:10px;padding:1px 7px;border-radius:4px;margin-right:4px;">${o.position}</span>` : o.position || '—'}
+                            </td>
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;">
+                                <span style="background:#eff6ff;color:#1d4ed8;font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;">${o.studentId || '—'}</span>
+                                ${isConflict ? `<span style="display:inline-block;background:#dc2626;color:#fff;font-size:10px;padding:1px 7px;border-radius:4px;margin-left:4px;font-weight:700;">⚠ Conflict Found</span>` : ''}
+                            </td>
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;"><strong>${o.name || '—'}</strong></td>
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;">${o.course || '—'}</td>
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;">${o.qpi1 || '—'}</td>
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;">${o.qpi2 || '—'}</td>
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;">${o.qpiInt || '—'}</td>
+                            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px;">${o.mobile || '—'}</td>
+                        </tr>`;
+                    }).join('');
+
+                    return `
+                        <div style="overflow-x:auto;margin-bottom:8px;">
+                            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                                <thead><tr>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Position</th>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Student ID</th>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Name</th>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Course &amp; Year</th>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Sem 1</th>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Sem 2</th>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Int.</th>
+                                    <th style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;text-align:left;">Mobile</th>
+                                </tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                        ${conflictsForOrg.length > 0 ? `
+                            <div style="margin-top:10px;">
+                                <div style="font-size:11px;font-weight:700;color:#dc2626;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;">⚠ Conflict Details</div>
+                                ${conflictsForOrg.map(c => {
+                                    const notified = c.notified === true;
+                                    return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px;">
+                                        <strong>${c.studentName || c.studentId}</strong> (ID: ${c.studentId}) holds
+                                        <em>${c.position1}</em> in <strong>${c.orgName1}</strong> and
+                                        <em>${c.position2}</em> in <strong>${c.orgName2}</strong>.
+                                        <span style="margin-left:8px;">${notified
+                                            ? `<span style="color:#16a34a;font-weight:600;">✓ Organizations notified</span>`
+                                            : `<button onclick="notifyConflict('${c.id}', this)" style="background:#dc2626;color:#fff;border:none;border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">📧 Notify Orgs</button>`
+                                        }</span>
+                                    </div>`;
+                                }).join('')}
+                            </div>` : ''}
+                    `;
+                })()}
             </div>
 
             <!-- ── Members (B-4) ─────────────────────────────── -->

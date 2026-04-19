@@ -172,7 +172,7 @@ function goToPage(pageName) {
     if (pageName === 'orgInfo')       { initOrgInfo(); initOrgInfoProgress(); }
     if (pageName === 'strategicPlan')   { initStrategicPlan(); createProgressCircle('strategicPlan'); updateStratPlanProgress(); }
     if (pageName === 'presidentProfile') { initPresidentProfile(); createProgressCircle('presidentProfile'); updatePresidentProgress(); }
-    if (pageName === 'orgOfficers')      { initOrgOfficers(); createProgressCircle('orgOfficers'); updateOfficersProgress(); }
+    if (pageName === 'orgOfficers')      { initOrgOfficers(); }
     if (pageName === 'orgMembers')       { initOrgMembers(); createProgressCircle('orgMembers'); updateMembersProgress(); }
     if (pageName === 'moderatorProfile') { initModeratorProfile(); createProgressCircle('moderatorProfile'); updateModeratorProgress(); }
     if (pageName === 'gradeAndDocs')     { initGradeAndDocs(); createProgressCircle('gradeAndDocs'); updateGradeDocsProgress(); }
@@ -1206,14 +1206,8 @@ function submitAndNext(currentForm, nextPage) {
         }
     }
     if (currentForm === 'orgOfficers') {
-        const tbody = document.getElementById('officersTableBody');
-        let hasOfficer = false;
-        if (tbody) tbody.querySelectorAll('tr').forEach(tr => {
-            const inputs = tr.querySelectorAll('input');
-            if (inputs[0]?.value.trim() && inputs[1]?.value.trim()) hasOfficer = true;
-        });
-        if (!hasOfficer) {
-            alert('Please add at least one officer with Position and Name filled in before proceeding.');
+        if (!_officersList || _officersList.length === 0) {
+            alert('Please add at least one officer before proceeding.');
             return;
         }
     }
@@ -1442,58 +1436,183 @@ function updatePresidentProgress() {
 // ORGANIZATION OFFICERS (Form B-3)
 // ═══════════════════════════════════════════════════
 
+// ── Officers data store (in-memory, persisted to localStorage) ───────────────
+var _officersList  = []; // array of {position, studentId, name, course, qpi1, qpi2, qpiInt, mobile}
+var _editingOfficerIdx = -1; // -1 = adding new, >=0 = editing existing
+
 function initOrgOfficers() {
-    const tbody = document.getElementById('officersTableBody');
-    if (tbody && tbody.children.length === 0) {
-        // Pre-seed president row
-        addOfficerRow();
-        if (currentState.presidentName) {
-            const firstRow = tbody.querySelector('tr');
-            if (firstRow) {
-                const inputs = firstRow.querySelectorAll('input');
-                inputs[0].value = 'President';
-                inputs[1].value = currentState.presidentName;
-                if (currentState.presidentMobile) inputs[6].value = currentState.presidentMobile;
-            }
-        }
-        addOfficerRow();
+    // Try to restore from localStorage
+    try {
+        var saved = localStorage.getItem('sacdev_officers_list');
+        if (saved) _officersList = JSON.parse(saved) || [];
+    } catch(e) { _officersList = []; }
+
+    // Pre-seed president if list is empty
+    if (_officersList.length === 0 && currentState.presidentName) {
+        _officersList.push({
+            position:  'President',
+            studentId: currentState.presidentStudentId || '',
+            name:      currentState.presidentName,
+            course:    currentState.presCourseYear || '',
+            qpi1:      '',
+            qpi2:      '',
+            qpiInt:    '',
+            mobile:    currentState.presidentMobile || ''
+        });
+        _saveOfficersList();
     }
-    restoreFormData('orgOfficers');
-    updateOfficersProgress();
+
+    _editingOfficerIdx = -1;
+    _renderOfficersTable();
+    _updateOfficerCardButtons();
 }
 
-function addOfficerRow() {
-    const tbody = document.getElementById('officersTableBody');
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td><input type="text" class="strat-cell-input" placeholder="e.g. President"></td>
-        <td><input type="text" class="strat-cell-input" placeholder="Last Name, First Name, MI"></td>
-        <td><input type="text" class="strat-cell-input" placeholder="e.g. BS CS, 3rd Year"></td>
-        <td><input type="number" class="strat-cell-input" placeholder="0.00" step="0.01" min="0" max="4" title="Semester 1 QPI"></td>
-        <td><input type="number" class="strat-cell-input" placeholder="0.00" step="0.01" min="0" max="4" title="Semester 2 QPI"></td>
-        <td><input type="number" class="strat-cell-input" placeholder="0.00" step="0.01" min="0" max="4" title="Intercession QPI"></td>
-        <td><input type="tel" class="strat-cell-input" placeholder="09XXXXXXXXX"></td>
-        <td><button class="btn-del-row" onclick="deleteSimpleRow(this)" title="Remove">&#215;</button></td>
-    `;
-    tbody.appendChild(tr);
-    tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateOfficersProgress));
+function _saveOfficersList() {
+    try { localStorage.setItem('sacdev_officers_list', JSON.stringify(_officersList)); } catch(e) {}
+}
+
+function addOfficerFromCard() {
+    var position  = (document.getElementById('newOfficerPosition')?.value || '').trim();
+    var studentId = (document.getElementById('newOfficerStudentId')?.value || '').trim();
+    var name      = (document.getElementById('newOfficerName')?.value || '').trim();
+    var course    = (document.getElementById('newOfficerCourse')?.value || '').trim();
+    var qpi1      = (document.getElementById('newOfficerQpi1')?.value || '').trim();
+    var qpi2      = (document.getElementById('newOfficerQpi2')?.value || '').trim();
+    var qpiInt    = (document.getElementById('newOfficerQpiInt')?.value || '').trim();
+    var mobile    = (document.getElementById('newOfficerMobile')?.value || '').trim();
+
+    if (!position && !studentId && !name) {
+        alert('Please fill in at least Position, Student ID, and Name before adding to the list.');
+        document.getElementById('newOfficerPosition')?.focus();
+        return;
+    }
+
+    if (_editingOfficerIdx >= 0) {
+        // Save edit
+        _officersList[_editingOfficerIdx] = { position, studentId, name, course, qpi1, qpi2, qpiInt, mobile };
+        _editingOfficerIdx = -1;
+    } else {
+        // Add new
+        _officersList.push({ position, studentId, name, course, qpi1, qpi2, qpiInt, mobile });
+    }
+
+    _saveOfficersList();
+    _renderOfficersTable();
+    clearOfficerCard();
+    _updateOfficerCardButtons();
+}
+
+function clearOfficerCard() {
+    ['newOfficerPosition','newOfficerStudentId','newOfficerName','newOfficerCourse',
+     'newOfficerQpi1','newOfficerQpi2','newOfficerQpiInt','newOfficerMobile'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    _editingOfficerIdx = -1;
+    _updateOfficerCardButtons();
+    // Remove editing highlight from card
+    var card = document.getElementById('officerInputCard');
+    if (card) card.classList.remove('is-editing');
+}
+
+function editOfficerRow(idx) {
+    var o = _officersList[idx];
+    if (!o) return;
+
+    // Populate card fields
+    var set = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+    set('newOfficerPosition',  o.position);
+    set('newOfficerStudentId', o.studentId);
+    set('newOfficerName',      o.name);
+    set('newOfficerCourse',    o.course);
+    set('newOfficerQpi1',      o.qpi1);
+    set('newOfficerQpi2',      o.qpi2);
+    set('newOfficerQpiInt',    o.qpiInt);
+    set('newOfficerMobile',    o.mobile);
+
+    _editingOfficerIdx = idx;
+    _updateOfficerCardButtons();
+
+    // Highlight card as editing mode
+    var card = document.getElementById('officerInputCard');
+    if (card) {
+        card.classList.add('is-editing');
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function deleteOfficerRow(idx) {
+    if (_editingOfficerIdx === idx) {
+        clearOfficerCard();
+    }
+    _officersList.splice(idx, 1);
+    _saveOfficersList();
+    _renderOfficersTable();
+    _updateOfficerCardButtons();
+}
+
+function _updateOfficerCardButtons() {
+    var addBtn    = document.getElementById('officerCardAddBtn');
+    var saveBtn   = document.getElementById('officerCardSaveBtn');
+    var cancelBtn = document.getElementById('officerCardCancelBtn');
+    var cardTitle = document.getElementById('officerCardTitle');
+    var isEditing = _editingOfficerIdx >= 0;
+
+    if (addBtn)    addBtn.style.display    = isEditing ? 'none' : '';
+    if (saveBtn)   saveBtn.style.display   = isEditing ? '' : 'none';
+    if (cancelBtn) cancelBtn.style.display = isEditing ? '' : 'none';
+    if (cardTitle) cardTitle.textContent   = isEditing
+        ? '✏️ Editing Officer — ' + (_officersList[_editingOfficerIdx]?.name || '')
+        : 'ADD OFFICER';
+}
+
+function _renderOfficersTable() {
+    var tbody    = document.getElementById('officersTableBody');
+    var emptyMsg = document.getElementById('officersEmptyMsg');
+    var badge    = document.getElementById('officerCountBadge');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    if (_officersList.length === 0) {
+        if (emptyMsg) emptyMsg.style.display = 'block';
+        if (badge)    badge.textContent = '0 added';
+        return;
+    }
+    if (emptyMsg) emptyMsg.style.display = 'none';
+    if (badge)    badge.textContent = _officersList.length + ' added';
+
+    _officersList.forEach(function(o, idx) {
+        var isBeingEdited = idx === _editingOfficerIdx;
+        var tr = document.createElement('tr');
+        if (isBeingEdited) tr.classList.add('officer-row-editing');
+        tr.innerHTML =
+            '<td>' + _esc(o.position) + '</td>' +
+            '<td><span class="officer-id-badge">' + _esc(o.studentId) + '</span></td>' +
+            '<td>' + _esc(o.name) + '</td>' +
+            '<td>' + _esc(o.course) + '</td>' +
+            '<td>' + _esc(o.qpi1) + '</td>' +
+            '<td>' + _esc(o.qpi2) + '</td>' +
+            '<td>' + _esc(o.qpiInt) + '</td>' +
+            '<td>' + _esc(o.mobile) + '</td>' +
+            '<td style="white-space:nowrap;">' +
+                '<button class="btn-edit-row" onclick="editOfficerRow(' + idx + ')" title="Edit">✏️</button> ' +
+                '<button class="btn-del-row"  onclick="deleteOfficerRow(' + idx + ')" title="Remove">&#215;</button>' +
+            '</td>';
+        tbody.appendChild(tr);
+    });
+}
+
+function _esc(str) {
+    return (str || '').toString()
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function updateOfficersProgress() {
-    const tbody = document.getElementById('officersTableBody');
-    let filledRows = 0;
-    let totalRows  = 0;
-    if (tbody) {
-        tbody.querySelectorAll('tr').forEach(tr => {
-            totalRows++;
-            const inputs = tr.querySelectorAll('input');
-            if (inputs[0] && inputs[0].value.trim() && inputs[1] && inputs[1].value.trim()) filledRows++;
-        });
-    }
-    // 100% when every row has at least Position + Name filled
-    const pct = totalRows === 0 ? 0 : Math.round((filledRows / totalRows) * 100);
-    updateCircle('orgOfficers', pct, 'Form B-3');
+    // No-op — progress circle removed for officers page
 }
+
+// Legacy stub kept so nothing else breaks
+function addOfficerRow() { /* replaced by card UI — no-op */ }
 
 // ═══════════════════════════════════════════════════
 // ORGANIZATION MEMBERS (Form B-4)
@@ -1736,15 +1855,15 @@ function buildSummary() {
     ], 'summary-b2'));
 
     // ── Form B-3 ─────────────────────────────────
-    const officerRows = document.getElementById('officersTableBody')?.querySelectorAll('tr') || [];
-    let officerCount = 0;
-    officerRows.forEach(tr => {
-        const inputs = tr.querySelectorAll('input');
-        if (inputs[0]?.value.trim() && inputs[1]?.value.trim()) officerCount++;
-    });
+    var _officersForSummary = [];
+    try {
+        var _savedOff = localStorage.getItem('sacdev_officers_list');
+        _officersForSummary = _savedOff ? JSON.parse(_savedOff) : (_officersList || []);
+    } catch(e) { _officersForSummary = _officersList || []; }
+    var officerCount = _officersForSummary.filter(function(o){ return o.position && o.name; }).length;
     container.appendChild(buildSection('ORGANIZATION OFFICERS', 'Form B-3', [
         { label: 'Officers Listed',  value: officerCount > 0 ? `${officerCount} officer(s)` : '', required: true },
-        { label: 'QPI Fields',       value: 'Sem 1, Sem 2, Intercession per officer', required: false },
+        { label: 'Student IDs',      value: officerCount > 0 ? 'Provided for all officers' : '', required: false },
     ], 'summary-b3'));
 
     // ── Form B-4 ─────────────────────────────────
@@ -1893,16 +2012,52 @@ async function submitAllForms() {
         'table_bodyOrgDev':   _spData['__table_bodyOrgDev']   || [],
         'table_bodyStudServ': _spData['__table_bodyStudServ']  || [],
         'table_bodyCommInv':  _spData['__table_bodyCommInv']   || [],
+        // Budget fields
+        budgetOrgDev:    _spData.budgetOrgDev   || '',
+        budgetStudServ:  _spData.budgetStudServ || '',
+        budgetCommInv:   _spData.budgetCommInv  || '',
+        budgetTotal:     _spData.budgetTotal    || '',
+        fundSOF:         _spData.fundSOF        || '',
+        fundPTA:         _spData.fundPTA        || '',
+        fundMembership:  _spData.fundMembership || '',
+        fundRaised:      _spData.fundRaised     || '',
+        fundTotal:       _spData.fundTotal      || '',
 
-        // ── Officers & Members counts ────────────────────────
-        officerCount: (() => {
-            const tb = document.getElementById('officersTableBody');
-            let n = 0;
-            if (tb) tb.querySelectorAll('tr').forEach(tr => {
-                const inp = tr.querySelectorAll('input');
-                if (inp[0]?.value.trim() && inp[1]?.value.trim()) n++;
+        // ── President leadership & awards tables (B-2) ───────
+        'table_presLeadershipBody': _presData['__table_presLeadershipBody'] || [],
+        'table_presAwardsBody':     _presData['__table_presAwardsBody']     || [],
+
+        // ── Officers & Members ───────────────────────────────
+        officers: (function() {
+            try {
+                var saved = localStorage.getItem('sacdev_officers_list');
+                return saved ? JSON.parse(saved) : (_officersList || []);
+            } catch(e) { return _officersList || []; }
+        })(),
+        officerCount: (function() {
+            try {
+                var saved = localStorage.getItem('sacdev_officers_list');
+                var list = saved ? JSON.parse(saved) : (_officersList || []);
+                return list.filter(function(o) { return o.position; }).length;
+            } catch(e) { return (_officersList || []).length; }
+        })(),
+        // Members list (B-4)
+        members: (function() {
+            var tb = document.getElementById('membersTableBody');
+            if (!tb) return [];
+            var rows = [];
+            tb.querySelectorAll('tr').forEach(function(tr) {
+                var inputs = tr.querySelectorAll('input');
+                var name   = inputs[0]?.value.trim() || '';
+                if (!name) return;
+                rows.push({
+                    name:   name,
+                    course: inputs[1]?.value.trim() || '',
+                    qpi:    inputs[2]?.value.trim() || '',
+                    mobile: inputs[3]?.value.trim() || ''
+                });
             });
-            return n;
+            return rows;
         })(),
         memberCount: (() => {
             const tb = document.getElementById('membersTableBody');
@@ -1912,6 +2067,9 @@ async function submitAllForms() {
             });
             return n;
         })(),
+
+        // ── Moderator leadership table (B-5.1) ───────────────
+        'table_modLeadershipBody': _modData['__table_modLeadershipBody'] || [],
 
         // ── Documents ────────────────────────────────────────
         constitutionFileName: document.getElementById('constitutionFileName')?.textContent?.trim() || '',

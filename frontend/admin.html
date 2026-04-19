@@ -56,24 +56,55 @@
 
         <section class="stats-row">
             <div class="stat-card">
-                <div class="stat-icon">📋</div>
+                <div class="stat-icon"></div>
                 <div class="stat-number" id="statTotal">—</div>
                 <div class="stat-label">Total Submissions</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">✅</div>
+                <div class="stat-icon"></div>
                 <div class="stat-number green" id="statComplete">—</div>
                 <div class="stat-label">Approved</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">⏳</div>
+                <div class="stat-icon"></div>
                 <div class="stat-number orange" id="statPending">—</div>
                 <div class="stat-label">Pending</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">🏛️</div>
-                <div class="stat-number blue" id="statCouncils">9</div>
-                <div class="stat-label">Councils</div>
+            <div class="stat-card conflict-stat-card" id="conflictStatCard">
+                <div class="stat-icon"></div>
+                <div class="stat-number red" id="statConflicts">—</div>
+                <div class="stat-label">Officer Conflicts</div>
+            </div>
+        </section>
+
+        <!-- ── Officer Conflicts ── -->
+        <section class="section-card" id="conflictsSection">
+            <div class="section-header">
+                <h2 class="section-title">
+                    Officer Conflicts
+                    <span class="conflict-count-badge" id="conflictCountBadge" style="display:none;"></span>
+                </h2>
+                <span class="section-hint">Students holding executive positions in more than one organization</span>
+            </div>
+            <div id="conflictsLoading" class="loading-row" style="display:none;">Checking for conflicts…</div>
+            <div id="conflictsNone" class="no-data" style="display:none;">✓ No officer conflicts detected.</div>
+            <div class="table-wrapper">
+                <table class="data-table" id="conflictsTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Student ID</th>
+                            <th>Student Name</th>
+                            <th>Organization 1</th>
+                            <th>Position 1</th>
+                            <th>Organization 2</th>
+                            <th>Position 2</th>
+                            <th>Detected</th>
+                            <th>Email Notify</th>
+                        </tr>
+                    </thead>
+                    <tbody id="conflictsTableBody"></tbody>
+                </table>
             </div>
         </section>
 
@@ -115,7 +146,7 @@
     <div id="reportPanel" class="report-overlay hidden" onclick="closeReportPanel(event)">
         <div class="report-box">
             <div class="report-header">
-                <h2>📊 Submission Report</h2>
+                <h2>Submission Report</h2>
                 <button class="modal-close" onclick="toggleReportPanel()">✕</button>
             </div>
             <div id="reportContent" class="report-content"></div>
