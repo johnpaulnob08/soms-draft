@@ -23,13 +23,13 @@
         </div>
     </nav>
 
-    <!-- Dashboard  -->
+    <!-- DASHBOARD -->
     <div id="dashboard" class="page">
         <div class="dashboard-container">
             <div class="dash-hero">
                 <h1 class="dash-title"><span style="font-family:Georgia,serif;font-weight:normal;">Xavier Ateneo</span> Student Organization Management System</h1>
 
-                <!-- Nav Tabs na part kadtong naay list sa orgs -->
+                <!-- Navigation Tabs -->
                 <nav class="dash-nav" id="dashNav">
                     <button class="dash-nav-btn active" data-tab="home" onclick="switchDashTab('home')">Home</button>
                     <button class="dash-nav-btn" data-tab="directory" onclick="switchDashTab('directory')">Directory</button>
@@ -37,6 +37,7 @@
                     <button class="dash-nav-btn" data-tab="clusters" onclick="switchDashTab('clusters')">Clusters</button>
                 </nav>
 
+                <!-- Proceed to Registration — always visible below nav tabs -->
                 <div class="dash-proceed">
                     <button class="btn btn-primary" onclick="window.location.href='login.html'">Proceed to Registration</button>
                 </div>
@@ -45,8 +46,10 @@
             <!-- Tab Content -->
             <div class="dash-content" id="dashContent">
 
+                <!-- HOME tab — empty, title+nav+button in hero is sufficient -->
                 <div id="dashTab-home" class="dash-tab active"></div>
 
+                <!-- DIRECTORY tab -->
                 <div id="dashTab-directory" class="dash-tab hidden">
                     <div class="dash-panel">
                         <div class="dash-panel-header">
@@ -59,6 +62,7 @@
                     </div>
                 </div>
 
+                <!-- COUNCILS tab -->
                 <div id="dashTab-councils" class="dash-tab hidden">
                     <div class="dash-panel">
                         <h2 class="dash-panel-title">Councils</h2>
@@ -66,6 +70,7 @@
                     </div>
                 </div>
 
+                <!-- CLUSTERS tab -->
                 <div id="dashTab-clusters" class="dash-tab hidden">
                     <div class="dash-panel">
                         <h2 class="dash-panel-title">Clusters</h2>
@@ -77,6 +82,7 @@
         </div>
     </div>
 
+    <!-- COUNCIL DETAIL (public ni siya once e publish sa sacdev) -->
     <div id="councilDetail" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('dashboard')">← Back to Dashboard</button>
@@ -88,7 +94,16 @@
 
     <script src="script.js"></script>
     <script>
+        // index.html only needs dashboard + councilDetail
         function handleLogout() {
+            // Clear all session state on logout
+            try {
+                sessionStorage.removeItem('sacdev_userEmail');
+                sessionStorage.removeItem('sacdev_currentPage');
+                sessionStorage.removeItem('sacdev_authPage');
+                sessionStorage.removeItem('sacdev_state');
+                sessionStorage.removeItem('sacdev_dashTab');
+            } catch(e) {}
             if (window.handleSignOut) { window.handleSignOut(); return; }
             window.location.href = 'index.html';
         }

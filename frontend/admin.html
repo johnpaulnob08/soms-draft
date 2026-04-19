@@ -3,111 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Student Activities and Leadership Development - Xavier University</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Admin Panel — SACDEV SOMS</title>
     <link rel="stylesheet" href="admin.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="navbar-container">
-            <div class="navbar-logo">
-                <img src="xu_logo.png" alt="Xavier University Logo" class="logo-img">
-                <span class="logo-text">Student Activities<br>and Leadership Development</span>
+
+<div id="adminLogin" class="login-page">
+    <div class="login-card">
+        <div class="login-logo">
+            <img src="xu_logo.png" alt="XU Logo">
+        </div>
+        <div class="login-badge">Admin Panel</div>
+        <h1 class="login-title">Admin Login</h1>
+        <p class="login-sub">OSA-SACDEV Staff Access Only</p>
+
+        <div class="login-form">
+            <div class="input-group">
+                <label>Admin Email</label>
+                <input type="email" id="adminEmail" placeholder="Enter admin email" autocomplete="username">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="adminPassword" placeholder="Enter password" autocomplete="current-password"
+                       onkeydown="if(event.key==='Enter') handleAdminLogin()">
+            </div>
+            <div id="adminLoginError" class="login-error hidden"></div>
+            <button class="login-btn" onclick="handleAdminLogin()">Log In →</button>
+        </div>
+    </div>
+</div>
+
+<div id="adminDashboard" class="dashboard hidden">
+
+    <!-- HEADER -->
+    <header class="dash-header">
+        <div class="dash-header-left">
+            <img src="xu_logo.png" alt="XU Logo" class="header-logo">
+            <div class="header-titles">
+                <span class="header-org">Student Activities and Leadership Development</span>
+                <h1 class="header-main">Admin Dashboard</h1>
+                <span class="header-sub">OSA-SACDEV Student Organization Management System</span>
             </div>
         </div>
-    </nav>
+        <div class="dash-header-right">
+            <span class="admin-badge">Admin Panel</span>
+            <button class="logout-btn" onclick="handleAdminLogout()">Log Out</button>
+        </div>
+    </header>
 
-    <!-- ADMIN LOGIN -->
-    <div id="adminLogin" class="page">
-        <div class="container-sm">
-            <div class="box" style="text-align:center;">
-                <div class="form-badge" style="margin-bottom:8px;">Admin</div>
-                <h1>Admin Login</h1>
-                <p>OSA-SACDEV staff access only</p>
+    <main class="dash-main">
+
+        <section class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon">📋</div>
+                <div class="stat-number" id="statTotal">—</div>
+                <div class="stat-label">Total Submissions</div>
             </div>
-            <div class="form">
-                <div class="form-group">
-                    <label class="form-label">Admin Email <span class="required">*</span></label>
-                    <input type="email" id="adminEmail" class="form-input" placeholder="Enter admin email">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Password <span class="required">*</span></label>
-                    <input type="password" id="adminPassword" class="form-input" placeholder="Enter admin password">
-                </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-number green" id="statComplete">—</div>
+                <div class="stat-label">Approved</div>
             </div>
-            <div id="adminLoginError" class="error-banner hidden"></div>
-            <div class="nav">
-                <div class="nav-right"><button class="btn btn-primary" onclick="handleAdminLogin()">Login &#8594;</button></div>
+            <div class="stat-card">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-number orange" id="statPending">—</div>
+                <div class="stat-label">Pending</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏛️</div>
+                <div class="stat-number blue" id="statCouncils">9</div>
+                <div class="stat-label">Councils</div>
+            </div>
+        </section>
+
+        <section class="section-card">
+            <div class="section-header">
+                <h2 class="section-title">Registered Organizations</h2>
+                <input type="text" id="adminSearch" class="search-input"
+                       placeholder="🔍  Search by org or email…"
+                       oninput="filterAdminTable()">
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table" id="adminSubmissionsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Organization</th>
+                            <th>President</th>
+                            <th>Org Email</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminSubmissionsBody"></tbody>
+                </table>
+                <div id="adminNoData" class="no-data hidden">No submissions found.</div>
+                <div id="adminLoading" class="loading-row">Loading submissions…</div>
+            </div>
+        </section>
+
+        <section class="section-card">
+            <div class="section-header">
+                <h2 class="section-title">Organizations</h2>
+                <span class="section-hint">Click an organization to view details</span>
+            </div>
+            <div id="clusterAccordion" class="cluster-accordion"></div>
+        </section>
+
+    </main>
+
+    <div id="reportPanel" class="report-overlay hidden" onclick="closeReportPanel(event)">
+        <div class="report-box">
+            <div class="report-header">
+                <h2>📊 Submission Report</h2>
+                <button class="modal-close" onclick="toggleReportPanel()">✕</button>
+            </div>
+            <div id="reportContent" class="report-content"></div>
         </div>
     </div>
 
-    <!-- ADMIN DASHBOARD -->
-    <div id="adminDashboard" class="page hidden">
-        <div class="container-md">
-            <div class="box" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-                <div>
-                    <div class="form-badge" style="margin-bottom:6px;">Admin Panel</div>
-                    <h1>Admin Dashboard</h1>
-                    <p>OSA-SACDEV Student Organization Management</p>
-                </div>
-                <button class="btn btn-secondary" onclick="handleAdminLogout()">Log Out</button>
-            </div>
+    <button class="fab" id="reportFab" onclick="toggleReportPanel()" title="View Report">
+        <span class="fab-icon">📊</span>
+        <span class="fab-label">Report</span>
+    </button>
 
-            <!-- Stats Row -->
-            <div class="admin-stats-row">
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number" id="statTotal">0</div>
-                    <div class="admin-stat-label">Total Submissions</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number" id="statComplete" style="color:#16a34a;">0</div>
-                    <div class="admin-stat-label">Complete</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number" id="statPending" style="color:#d97706;">0</div>
-                    <div class="admin-stat-label">Pending</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number" id="statCouncils">9</div>
-                    <div class="admin-stat-label">Councils</div>
-                </div>
-            </div>
+</div>
 
-            <!-- Submissions Table -->
-            <div class="strat-section">
-                <div class="guidelines-section-title" style="display:flex;align-items:center;justify-content:space-between;">
-                    <span>Registered Organizations</span>
-                    <input type="text" id="adminSearch" class="form-input" placeholder="&#128269; Search by org or email..." style="max-width:260px;font-size:13px;" oninput="filterAdminTable()">
-                </div>
-                <div class="strat-table-wrapper" style="margin-top:16px;">
-                    <table class="strat-table" id="adminSubmissionsTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Organization</th>
-                                <th>Council</th>
-                                <th>President</th>
-                                <th>Email</th>
-                                <th>Cluster</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="adminSubmissionsBody">
-                        </tbody>
-                    </table>
-                </div>
-                <div id="adminNoData" class="admin-no-data hidden">No submissions found.</div>
-            </div>
-
-            <!-- Council Summary -->
-            <div class="strat-section">
-                <div class="guidelines-section-title">Council Overview</div>
-                <div class="admin-council-grid" id="adminCouncilGrid"></div>
-            </div>
-        </div>
+<div id="detailModal" class="modal-overlay hidden" onclick="closeModal(event)">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeDetailModal()">✕</button>
+        <div id="modalContent"></div>
     </div>
+</div>
 
-    <script src="admin.js"></script>
+<script src="admin.js"></script>
 </body>
 </html>

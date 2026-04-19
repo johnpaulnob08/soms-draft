@@ -148,6 +148,7 @@ function showPage(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
             const el = document.getElementById(pageId);
             if (el) { el.classList.remove('hidden'); window.scrollTo(0, 0); }
+            try { sessionStorage.setItem('sacdev_authPage', pageId); } catch(e) {}
 
             if (pageId === 'loginPage') {
                 document.getElementById('loginEmail').value    = '';

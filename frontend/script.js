@@ -123,10 +123,11 @@ let currentState = {
     selectedOrg: null,
     isLoggedIn: false,
     userEmail: null,
-    authMode: 'login',        
-    dashTab: 'home',      
-
+    authMode: 'login',        // 'register' | 'login' — login shown first by default
+    dashTab: 'home',      // active dashboard tab
+    // org info
     orgName: null,
+    orgEmail: null,
     orgType: null,
     yearEstablished: null,
     orgCluster: null,
@@ -141,16 +142,18 @@ function goToPage(pageName) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     document.getElementById(pageName).classList.remove('hidden');
     window.scrollTo(0, 0);
+    // Persist current page so refresh restores position
+    try { sessionStorage.setItem('sacdev_currentPage', pageName); } catch(e) {}
 
     document.querySelectorAll('[id^="progress-circle-"]').forEach(el => el.remove());
 
-
+    // Show/hide global form sidebar
     const formPages = ['orgInfo','strategicPlan','presidentProfile','orgOfficers','orgMembers','moderatorProfile','gradeAndDocs','submissionSummary'];
     const sidenav = document.getElementById('formSidenav');
     if (formPages.includes(pageName)) {
         sidenav.classList.remove('hidden');
         document.body.classList.add('has-form-sidenav');
-
+        // Highlight active item
         document.querySelectorAll('.form-sidenav-item').forEach(el => el.classList.remove('active'));
         const activeItem = document.getElementById('snav-' + pageName);
         if (activeItem) activeItem.classList.add('active');
@@ -175,6 +178,7 @@ function goToPage(pageName) {
     if (pageName === 'gradeAndDocs')     { initGradeAndDocs(); createProgressCircle('gradeAndDocs'); updateGradeDocsProgress(); }
 }
 
+// Navigate from sidebar — saves current form data first
 function snavGo(page) {
     const currentPage = [...document.querySelectorAll('.page')].find(p => !p.classList.contains('hidden'));
     if (currentPage) {
@@ -186,6 +190,7 @@ function snavGo(page) {
     goToPage(page);
 }
 
+// HELPERS
 function getSortedCouncils() {
     const others = Object.keys(councils)
         .filter(k => k !== 'CSG' && k !== 'AECO')
@@ -193,6 +198,12 @@ function getSortedCouncils() {
     return ['CSG', 'AECO', ...others];
 }
 
+// ═══════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// CLUSTER DATA
+// ═══════════════════════════════════════════════════
 const clusters = {
     'Business Environment': [
         'Junior Financial Executives (JFINEX)',
@@ -300,23 +311,32 @@ const councilsOrdered = [
     { key: 'UNITASS',name: 'United Arts and Sciences Student Council' }
 ];
 
-
+// ═══════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════
 function initDashboard() {
 
-    switchDashTab(currentState.dashTab || 'home');
+    const savedTab = (function() {
+        try { return sessionStorage.getItem('sacdev_dashTab'); } catch(e) { return null; }
+    })();
+    switchDashTab(savedTab || currentState.dashTab || 'home');
 }
 
 function switchDashTab(tab) {
     currentState.dashTab = tab;
+    try { sessionStorage.setItem('sacdev_dashTab', tab); } catch(e) {}
 
+    // Toggle nav button active state
     document.querySelectorAll('.dash-nav-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tab);
     });
 
+    // Toggle tab panels
     document.querySelectorAll('.dash-tab').forEach(el => el.classList.add('hidden'));
     const activePanel = document.getElementById('dashTab-' + tab);
     if (activePanel) activePanel.classList.remove('hidden');
 
+    // Render content
     if (tab === 'directory') renderDirectory('');
     if (tab === 'councils')  renderCouncils();
     if (tab === 'clusters')  renderClusters();
@@ -324,7 +344,7 @@ function switchDashTab(tab) {
 
 function renderDirectory(query) {
     const container = document.getElementById('directoryList');
-
+    // Collect all orgs from cluster data, deduplicated, alphabetically sorted
     const allOrgsSet = new Set();
     Object.values(clusters).forEach(orgs => orgs.forEach(o => allOrgsSet.add(o)));
     let allOrgs = [...allOrgsSet].sort((a, b) => a.localeCompare(b));
@@ -340,9 +360,9 @@ function renderDirectory(query) {
     allOrgs.forEach(org => {
         const item = document.createElement('div');
         item.className = 'dash-org-item dash-org-item-clickable';
-        item.title = 'Click to proceed to registration';
+        item.title = 'Click to view strategic plans';
         item.textContent = org;
-        item.onclick = () => { window.location.href = 'login.html'; };
+        item.onclick = () => openOrgPlansModal(org);
         container.appendChild(item);
     });
 }
@@ -356,8 +376,10 @@ function renderCouncils() {
     container.innerHTML = '';
     councilsOrdered.forEach(c => {
         const item = document.createElement('div');
-        item.className = 'dash-council-item';
-        item.innerHTML = `<span class="dash-council-key">${c.key}</span><span class="dash-council-name">${c.name}</span>`;
+        item.className = 'dash-council-item dash-org-item-clickable';
+        item.title = 'Click to view strategic plans';
+        item.innerHTML = `<span class="dash-council-key">${c.key}</span><span class="dash-council-name">${c.name}</span><span class="dash-council-arrow">›</span>`;
+        item.onclick = () => openOrgPlansModal(c.name);
         container.appendChild(item);
     });
 }
@@ -379,9 +401,9 @@ function renderClusters() {
         sortedOrgs.forEach(org => {
             const li = document.createElement('li');
             li.className = 'dash-cluster-org-item';
-            li.title = 'Click to proceed to registration';
+            li.title = 'Click to view strategic plans';
             li.textContent = org;
-            li.onclick = () => { window.location.href = 'login.html'; };
+            li.onclick = () => openOrgPlansModal(org);
             ul.appendChild(li);
         });
         block.appendChild(ul);
@@ -406,7 +428,9 @@ function createCouncilCard(key) {
     return card;
 }
 
-
+// ═══════════════════════════════════════════════════
+// COUNCIL DETAIL (public view)
+// ═══════════════════════════════════════════════════
 function initCouncilDetail() {
     const key = currentState.selectedCouncil;
     document.getElementById('councilDetailTitle').textContent = key;
@@ -436,7 +460,7 @@ function initLoginPage() {
     if (e) e.value = '';
     if (p) p.value = '';
     if (err) { err.classList.add('hidden'); err.textContent = ''; }
-
+    // reset google button label
     const gb = document.getElementById('googleBtnText');
     if (gb) gb.textContent = 'Continue with Google (@my.xu.edu.ph)';
     const gsb = document.getElementById('googleSignInBtn');
@@ -458,16 +482,19 @@ function initRegisterPage() {
     if (gsb) { gsb.disabled = false; gsb.style.opacity = '1'; }
 }
 
+// Keep initAuth as no-op for backward-compat (firebase-auth.js may call it indirectly)
 function initAuth() {}
 
+// setAuthMode / toggleAuthMode kept for backward-compat with firebase-auth.js
 function setAuthMode(mode) { currentState.authMode = mode; }
 function toggleAuthMode() {
     goToPage(currentState.authMode === 'register' ? 'loginPage' : 'registerPage');
 }
 
+// handleLogin — called by loginPage submit button
 function handleLogin() {
     currentState.authMode = 'login';
-
+    // Sync loginPage fields → legacy auth fields that firebase-auth.js reads
     const le = document.getElementById('loginEmail');
     const lp = document.getElementById('loginPassword');
     const ae = document.getElementById('authEmail');
@@ -480,6 +507,7 @@ function handleLogin() {
     else console.warn('handleAuth not ready yet');
 }
 
+// handleRegister — called by registerPage submit button
 function handleRegister() {
     currentState.authMode = 'register';
     const re = document.getElementById('registerEmail');
@@ -495,12 +523,14 @@ function handleRegister() {
     else console.warn('handleAuth not ready yet');
 }
 
+// Route error display to the currently visible auth page
 window.showAuthError = function(msg) {
     const loginVisible = document.getElementById('loginPage') &&
                          !document.getElementById('loginPage').classList.contains('hidden');
     const targetId = loginVisible ? 'loginError' : 'registerError';
     const errEl = document.getElementById(targetId);
     if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+    // keep legacy authError in sync so firebase-auth.js internal checks work
     const legacy = document.getElementById('authError');
     if (legacy) { legacy.textContent = msg; legacy.classList.remove('hidden'); }
 };
@@ -553,6 +583,7 @@ function initOrgSelect() {
         const item = document.createElement('div');
         item.className = 'list-item';
         if (idx === 0) {
+            // Council itself — highlight
             item.classList.add('list-item-council');
         }
         item.onclick = () => {
@@ -570,15 +601,20 @@ function initOrgSelect() {
     });
 }
 
+// ═══════════════════════════════════════════════════
+// GUIDELINES
+// ═══════════════════════════════════════════════════
 function proceedWithConfirm() {
     if (confirm('I confirm that I have read and understood all the re-registration guidelines. Proceed?')) {
         goToPage('orgInfo');
     }
 }
 
-
+// ═══════════════════════════════════════════════════
+// ORG INFO
+// ═══════════════════════════════════════════════════
 function initOrgInfo() {
-    // Dapat naay org name dropdown grouped by cluster (alphabetical dapat each)
+    // Populate org name dropdown grouped by cluster (alphabetical within each)
     const orgSelect = document.getElementById('infoOrgName');
     if (orgSelect && orgSelect.options.length <= 1) {
         const sortedClusters = Object.keys(clusters).sort();
@@ -596,6 +632,7 @@ function initOrgInfo() {
         });
     }
     if (currentState.orgName)         document.getElementById('infoOrgName').value            = currentState.orgName;
+    if (currentState.orgEmail)        document.getElementById('infoOrgEmail').value           = currentState.orgEmail;
     if (currentState.orgType)          document.getElementById('infoOrgType').value           = currentState.orgType;
     if (currentState.orgCluster)       document.getElementById('infoCluster').value            = currentState.orgCluster;
     if (currentState.yearEstablished)  document.getElementById('infoYearEstablished').value    = currentState.yearEstablished;
@@ -605,8 +642,10 @@ function initOrgInfo() {
     if (currentState.moderatorName)    document.getElementById('infoModeratorName').value      = currentState.moderatorName;
 }
 
+// When org name is selected, auto-populate cluster if it can be determined
 function onOrgNameChange(orgName) {
     if (!orgName) return;
+    // Find which cluster this org belongs to
     for (const [clusterName, orgs] of Object.entries(clusters)) {
         if (orgs.includes(orgName)) {
             const clusterEl = document.getElementById('infoCluster');
@@ -619,6 +658,7 @@ function onOrgNameChange(orgName) {
 
 function submitOrgInfo() {
     const orgName  = document.getElementById('infoOrgName').value.trim();
+    const orgEmail = document.getElementById('infoOrgEmail').value.trim();
     const orgType  = document.getElementById('infoOrgType').value.trim();
     const cluster  = document.getElementById('infoCluster').value.trim();
     const yearEst  = document.getElementById('infoYearEstablished').value.trim();
@@ -628,6 +668,7 @@ function submitOrgInfo() {
     const modName  = document.getElementById('infoModeratorName').value.trim();
 
     if (!orgName)   { alert('Please select your Organization Name.');      document.getElementById('infoOrgName').focus();         return; }
+    if (!orgEmail)  { alert('Please enter the Organization Email.');       document.getElementById('infoOrgEmail').focus();        return; }
     if (!orgType)   { alert('Please select a Type of Organization.');      document.getElementById('infoOrgType').focus();         return; }
     if (!cluster)   { alert('Please select an Org Cluster.');              document.getElementById('infoCluster').focus();         return; }
     if (!presName)  { alert("Please enter the President's Full Name.");    document.getElementById('infoPresidentName').focus();    return; }
@@ -636,6 +677,7 @@ function submitOrgInfo() {
     if (!modName)   { alert('Please enter the Name of Moderator-Nominee.');document.getElementById('infoModeratorName').focus();   return; }
 
     currentState.orgName         = orgName;
+    currentState.orgEmail        = orgEmail;
     currentState.orgType         = orgType;
     currentState.orgCluster      = cluster;
     currentState.yearEstablished = yearEst;
@@ -645,24 +687,44 @@ function submitOrgInfo() {
     currentState.moderatorName   = modName;
 
     saveFormData('orgInfo');
+    // Persist state fields for page refresh restoration
+    try {
+        sessionStorage.setItem('sacdev_state', JSON.stringify({
+            orgName:         currentState.orgName,
+            orgEmail:        currentState.orgEmail,
+            orgType:         currentState.orgType,
+            orgCluster:      currentState.orgCluster,
+            yearEstablished: currentState.yearEstablished,
+            presidentName:   currentState.presidentName,
+            presidentMobile: currentState.presidentMobile,
+            presidentEmail:  currentState.presidentEmail,
+            moderatorName:   currentState.moderatorName,
+            selectedOrg:     currentState.selectedOrg,
+            selectedCouncil: currentState.selectedCouncil,
+            userEmail:       currentState.userEmail,
+            isLoggedIn:      currentState.isLoggedIn,
+        }));
+    } catch(e) {}
     goToPage('strategicPlan');
 }
 
-
+// ═══════════════════════════════════════════════════
+// STRATEGIC PLAN
+// ═══════════════════════════════════════════════════
 function initStrategicPlan() {
-
+    // Pre-fill org name from orgInfo selection
     const orgNameEl = document.getElementById('stratOrgFullName');
     if (orgNameEl && !orgNameEl.value) {
         orgNameEl.value = currentState.orgName || currentState.selectedOrg || '';
     }
-
+    // Seed rows if empty
     ['bodyOrgDev','bodyStudServ','bodyCommInv'].forEach(id => {
         if (!document.getElementById(id).hasChildNodes()) {
             addRow(id, id.replace('body','total').replace('OrgDev','OrgDev').replace('StudServ','StudServ').replace('CommInv','CommInv'));
             addRow(id, id.replace('body','total').replace('OrgDev','OrgDev').replace('StudServ','StudServ').replace('CommInv','CommInv'));
         }
     });
-   
+    // Attach live listeners to core text fields
     ['stratAcronym','stratOrgFullName','stratMission','stratVision'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', updateStratPlanProgress);
@@ -685,7 +747,7 @@ function addRow(bodyId, totalId) {
         <td><button class="btn-del-row" onclick="deleteRow(this, '${bodyId}', '${totalId}')" title="Remove row">&#215;</button></td>
     `;
     tbody.appendChild(tr);
-
+    // Attach progress listeners to project name cell (2nd td textarea)
     const projectNameTA = tr.querySelector('td:nth-child(2) textarea');
     if (projectNameTA) projectNameTA.addEventListener('input', updateStratPlanProgress);
 }
@@ -705,7 +767,7 @@ function recalcTotal(bodyId, totalId) {
     });
     const totalEl = document.getElementById(totalId);
     if (totalEl) totalEl.value = sum > 0 ? 'Php ' + sum.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
-
+    // Sync budget summary from table totals
     syncBudgetSummary();
     updateStratPlanProgress();
 }
@@ -730,7 +792,7 @@ function syncBudgetSummary() {
 }
 
 function calcBudgetTotal() {
-
+    // Legacy – now handled by syncBudgetSummary; kept for safety
     syncBudgetSummary();
 }
 
@@ -753,8 +815,12 @@ function submitStratPlan() {
     goToPage('presidentProfile');
 }
 
-function createProgressCircle(containerId) {
+// ═══════════════════════════════════════════════════
+// PROGRESS TRACKERS
+// ═══════════════════════════════════════════════════
 
+function createProgressCircle(containerId) {
+    // Remove existing if any
     const existing = document.getElementById('progress-circle-' + containerId);
     if (existing) existing.remove();
 
@@ -849,10 +915,10 @@ function updateCircle(containerId, pct, label) {
     if (lbl && label) lbl.textContent = label;
 }
 
-//  Org Info progress 
+// ── Org Info progress ──────────────────────────────
 function initOrgInfoProgress() {
     createProgressCircle('orgInfo');
-    const fields = ['infoOrgName','infoOrgType','infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
+    const fields = ['infoOrgName','infoOrgEmail','infoOrgType','infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
     fields.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', updateOrgInfoProgress);
@@ -862,7 +928,7 @@ function initOrgInfoProgress() {
 }
 
 function updateOrgInfoProgress() {
-    const fields = ['infoOrgName','infoOrgType','infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
+    const fields = ['infoOrgName','infoOrgEmail','infoOrgType','infoCluster','infoPresidentName','infoPresidentMobile','infoPresidentEmail','infoModeratorName'];
     let filled = 0;
     fields.forEach(id => {
         const el = document.getElementById(id);
@@ -872,10 +938,11 @@ function updateOrgInfoProgress() {
     updateCircle('orgInfo', pct, 'Org Info');
 }
 
-//  Strat Plan progress
+// ── Strategic Plan progress ────────────────────────
 function updateStratPlanProgress() {
     let total = 0, filled = 0;
 
+    // Core fields: acronym, full name, mission, vision (4 fields)
     const coreFields = ['stratAcronym','stratOrgFullName','stratMission','stratVision'];
     coreFields.forEach(id => {
         total++;
@@ -883,6 +950,7 @@ function updateStratPlanProgress() {
         if (el && el.value.trim()) filled++;
     });
 
+    // Each section: count as 1 field if at least 1 row has a project name filled (3 sections)
     ['bodyOrgDev','bodyStudServ','bodyCommInv'].forEach(bodyId => {
         total++;
         const tbody = document.getElementById(bodyId);
@@ -893,6 +961,7 @@ function updateStratPlanProgress() {
         if (hasEntry) filled++;
     });
 
+    // Sources of funds: at least 1 source filled (1 field)
     total++;
     const fundIds = ['fundSOF','fundPTA','fundMembership','fundRaised'];
     let hasFund = false;
@@ -906,12 +975,142 @@ function updateStratPlanProgress() {
     updateCircle('strategicPlan', pct, 'Form B-1');
 }
 
+// ═══════════════════════════════════════════════════
+// ORG PLANS MODAL (public — shown when visitor clicks an org)
+// ═══════════════════════════════════════════════════
+async function openOrgPlansModal(orgName) {
+    // Ensure modal exists in DOM
+    let overlay = document.getElementById('orgPlansOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'orgPlansOverlay';
+        overlay.className = 'org-plans-overlay';
+        overlay.innerHTML = `
+            <div class="org-plans-box" id="orgPlansBox">
+                <button class="org-plans-close" onclick="closeOrgPlansModal()">✕</button>
+                <div id="orgPlansContent"></div>
+            </div>`;
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeOrgPlansModal();
+        });
+        document.body.appendChild(overlay);
+    }
+
+    const content = document.getElementById('orgPlansContent');
+    content.innerHTML = '<div class="org-plans-loading">Loading plans…</div>';
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    try {
+        const res = await fetch('/org-plans/' + encodeURIComponent(orgName));
+        const data = await res.json();
+
+        if (!data.published || !data.plans) {
+            content.innerHTML = `
+                <div class="org-plans-header">
+                    <div class="org-plans-badge">Strategic Plan 2026–2027</div>
+                    <h2 class="org-plans-title">${orgName}</h2>
+                </div>
+                <div class="org-plans-body">
+                    <div class="org-plans-empty">
+                        <span style="font-size:40px;">📋</span>
+                        <p>No plans published yet.</p>
+                        <small>Check back once OSA-SACDEV publishes this organization's strategic plan.</small>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        const renderTable = (rows, label) => {
+            if (!rows || rows.length === 0) return `<p class="org-plans-none">No entries for ${label}.</p>`;
+            return `
+                <div class="org-plans-table-wrap">
+                    <table class="org-plans-table">
+                        <thead>
+                            <tr>
+                                <th>Target Date</th>
+                                <th>Project / Initiative</th>
+                                <th>Project Head</th>
+                                <th>Budget</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.map(r => `
+                                <tr>
+                                    <td>${r.date || '—'}</td>
+                                    <td><strong>${r.projectName}</strong>${r.objectives ? '<br><small style="color:#64748b;">' + r.objectives + '</small>' : ''}</td>
+                                    <td>${r.projectHead || '—'}</td>
+                                    <td>${r.budget || '—'}</td>
+                                </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+        };
+
+        content.innerHTML = `
+            <div class="org-plans-header">
+                <div class="org-plans-badge">Strategic Plan 2026–2027</div>
+                <h2 class="org-plans-title">${data.orgName}</h2>
+                <div class="org-plans-meta">
+                    ${data.cluster ? `<span>📁 ${data.cluster}</span>` : ''}
+                    ${data.orgType ? `<span>🏛️ ${data.orgType}</span>` : ''}
+                    ${data.acronym ? `<span>🏷️ ${data.acronym}</span>` : ''}
+                </div>
+                ${data.mission ? `<div class="org-plans-mv"><strong>Mission:</strong> ${data.mission}</div>` : ''}
+                ${data.vision  ? `<div class="org-plans-mv"><strong>Vision:</strong>  ${data.vision}</div>`  : ''}
+            </div>
+            <div class="org-plans-body">
+                <div class="org-plans-section">
+                    <div class="org-plans-section-title">
+                        <span class="org-plans-section-label">A</span>
+                        Organizational Development
+                    </div>
+                    ${renderTable(data.plans.orgDev, 'Organizational Development')}
+                </div>
+                <div class="org-plans-section">
+                    <div class="org-plans-section-title">
+                        <span class="org-plans-section-label">B</span>
+                        Student Services
+                    </div>
+                    ${renderTable(data.plans.studServ, 'Student Services')}
+                </div>
+                <div class="org-plans-section">
+                    <div class="org-plans-section-title">
+                        <span class="org-plans-section-label">C</span>
+                        Community Involvement
+                    </div>
+                    ${renderTable(data.plans.commInv, 'Community Involvement')}
+                </div>
+                <div class="org-plans-footer">Published by OSA-SACDEV${data.publishedAt ? ' · ' + data.publishedAt : ''}</div>
+            </div>`;
+    } catch (err) {
+        content.innerHTML = `<div class="org-plans-empty"><p>Failed to load plans. Please try again.</p></div>`;
+        console.error('openOrgPlansModal error:', err);
+    }
+}
+
+function closeOrgPlansModal() {
+    const overlay = document.getElementById('orgPlansOverlay');
+    if (overlay) { overlay.style.display = 'none'; }
+    document.body.style.overflow = '';
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+    // Restore persisted currentState fields from sessionStorage
+    try {
+        const saved = sessionStorage.getItem('sacdev_state');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            Object.assign(currentState, parsed);
+        }
+    } catch(e) {}
 
     if (document.getElementById('dashboard')) {
         goToPage('dashboard');
     }
 });
+
 
 const STORAGE_KEY_PREFIX = 'sacdev_form_';
 
@@ -949,7 +1148,7 @@ function showSaveToast(msg) {
 }
 
 function submitAndNext(currentForm, nextPage) {
-
+    // Per-form required-field validation before saving and proceeding
     if (currentForm === 'presidentProfile') {
         const required = [
             { id: 'presFullName',   label: "President's Full Name" },
@@ -1004,6 +1203,7 @@ function submitAndNext(currentForm, nextPage) {
     goToPage(nextPage);
 }
 
+// ── Generic field collector ───────────────────────
 function collectFormData(formId) {
     const container = document.getElementById(formId);
     if (!container) return {};
@@ -1011,11 +1211,11 @@ function collectFormData(formId) {
     container.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
         data[el.id] = el.value;
     });
-
+    // Collect table rows as arrays
     container.querySelectorAll('tbody[id]').forEach(tbody => {
         data['__table_' + tbody.id] = collectTableRows(tbody);
     });
-
+    // Collect image previews (base64)
     container.querySelectorAll('img.upload-preview[id]').forEach(img => {
         if (!img.classList.contains('hidden') && img.src) {
             data['__img_' + img.id] = img.src;
@@ -1041,11 +1241,11 @@ function restoreFormData(formId) {
     if (!data) return;
     const container = document.getElementById(formId);
     if (!container) return;
-
+    // Restore simple fields
     container.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
         if (data[el.id] !== undefined) el.value = data[el.id];
     });
-
+    // Restore images
     container.querySelectorAll('img.upload-preview[id]').forEach(img => {
         const key = '__img_' + img.id;
         if (data[key]) {
@@ -1056,12 +1256,12 @@ function restoreFormData(formId) {
             if (ph) ph.style.display = 'none';
         }
     });
-
-    if (data['__file_gradeSlipsFileName']) document.getElementById('gradeSlipsFileName').textContent = data['__file_gradeSlipsFileName'];
-    if (data['__file_constitutionFileName']) document.getElementById('constitutionFileName').textContent = data['__file_constitutionFileName'];
+    // Restore file upload names
+    if (data['__file_constitutionFileName']) {
+        const el = document.getElementById('constitutionFileName');
+        if (el) el.textContent = data['__file_constitutionFileName'];
+    }
 }
-
-
 
 function handleImageUpload(inputId, previewId, placeholderId) {
     const input = document.getElementById(inputId);
@@ -1074,10 +1274,10 @@ function handleImageUpload(inputId, previewId, placeholderId) {
         preview.src = e.target.result;
         preview.classList.remove('hidden');
         if (placeholder) placeholder.style.display = 'none';
-
+        // Mark parent box
         const box = input.closest('.upload-box') || input.previousElementSibling;
         if (box) box.classList.add('has-file');
-
+        // Trigger progress update
         const pageEl = input.closest('.page');
         if (pageEl) triggerProgressUpdate(pageEl.id);
     };
@@ -1104,8 +1304,12 @@ function triggerProgressUpdate(pageId) {
     else if (pageId === 'gradeAndDocs') updateGradeDocsProgress();
 }
 
-function initPresidentProfile() {
+// ═══════════════════════════════════════════════════
+// PRESIDENT'S PROFILE (Form B-2)
+// ═══════════════════════════════════════════════════
 
+function initPresidentProfile() {
+    // Pre-fill from orgInfo if available
     if (currentState.presidentName && !document.getElementById('presFullName').value) {
         document.getElementById('presFullName').value = currentState.presidentName;
     }
@@ -1116,6 +1320,7 @@ function initPresidentProfile() {
         document.getElementById('presEmail').value = currentState.presidentEmail;
     }
 
+    // Seed leadership table if empty
     const lb = document.getElementById('presLeadershipBody');
     if (lb && lb.children.length === 0) {
         addLeadershipRow('presLeadershipBody');
@@ -1127,8 +1332,10 @@ function initPresidentProfile() {
         addAwardsRow('presAwardsBody');
     }
 
+    // Restore saved data
     restoreFormData('presidentProfile');
 
+    // Attach progress listeners
     ['presFullName','presCourseYear','presMobile','presEmail'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', updatePresidentProgress); el.addEventListener('change', updatePresidentProgress); }
@@ -1175,17 +1382,21 @@ function updatePresidentProgress() {
         const el = document.getElementById(id);
         if (el && el.value.trim()) filled++;
     });
-
+    // Check signature
     const sig = document.getElementById('presSignaturePreview');
     if (sig && !sig.classList.contains('hidden') && sig.src) filled++;
     const total = required.length + 1; // +1 for signature
     updateCircle('presidentProfile', (filled / total) * 100, 'Form B-2');
 }
 
+// ═══════════════════════════════════════════════════
+// ORGANIZATION OFFICERS (Form B-3)
+// ═══════════════════════════════════════════════════
+
 function initOrgOfficers() {
     const tbody = document.getElementById('officersTableBody');
     if (tbody && tbody.children.length === 0) {
-
+        // Pre-seed president row
         addOfficerRow();
         if (currentState.presidentName) {
             const firstRow = tbody.querySelector('tr');
@@ -1222,16 +1433,22 @@ function addOfficerRow() {
 function updateOfficersProgress() {
     const tbody = document.getElementById('officersTableBody');
     let filledRows = 0;
+    let totalRows  = 0;
     if (tbody) {
         tbody.querySelectorAll('tr').forEach(tr => {
+            totalRows++;
             const inputs = tr.querySelectorAll('input');
             if (inputs[0] && inputs[0].value.trim() && inputs[1] && inputs[1].value.trim()) filledRows++;
         });
     }
-    const pct = filledRows > 0 ? Math.min((filledRows / 3) * 100, 100) : 0;
+    // 100% when every row has at least Position + Name filled
+    const pct = totalRows === 0 ? 0 : Math.round((filledRows / totalRows) * 100);
     updateCircle('orgOfficers', pct, 'Form B-3');
 }
 
+// ═══════════════════════════════════════════════════
+// ORGANIZATION MEMBERS (Form B-4)
+// ═══════════════════════════════════════════════════
 
 function initOrgMembers() {
     const isExtraCurricular = (currentState.orgType || '').toLowerCase() === 'extra-curricular';
@@ -1278,8 +1495,12 @@ function updateMembersProgress() {
     updateCircle('orgMembers', pct, 'Form B-4');
 }
 
-function initModeratorProfile() {
+// ═══════════════════════════════════════════════════
+// MODERATOR PROFILE (Form B-5.1)
+// ═══════════════════════════════════════════════════
 
+function initModeratorProfile() {
+    // Pre-fill nominating org
     if (currentState.selectedOrg && !document.getElementById('modNominatingOrg').value) {
         document.getElementById('modNominatingOrg').value = currentState.selectedOrg;
     }
@@ -1314,6 +1535,10 @@ function updateModeratorProgress() {
     updateCircle('moderatorProfile', (filled / total) * 100, 'Form B-5.1');
 }
 
+// ═══════════════════════════════════════════════════
+// GRADE SLIPS + DOCS (Combined)
+// ═══════════════════════════════════════════════════
+
 function initGradeAndDocs() {
     restoreFormData('gradeAndDocs');
     updateGradeDocsProgress();
@@ -1321,10 +1546,7 @@ function initGradeAndDocs() {
 
 function updateGradeDocsProgress() {
     let filled = 0;
-    const total = 3;
-
-    const gradeBox = document.getElementById('gradeSlipsBox');
-    if (gradeBox && gradeBox.classList.contains('has-file')) filled++;
+    const total = 2;
 
     const constBox = document.getElementById('constitutionBox');
     if (constBox && constBox.classList.contains('has-file')) filled++;
@@ -1336,17 +1558,20 @@ function updateGradeDocsProgress() {
 }
 
 function submitAllForms() {
-
+    // Save final form
     saveFormData('gradeAndDocs');
-    const gradeBox = document.getElementById('gradeSlipsBox');
-    const constBox = document.getElementById('constitutionBox');
+    const constBox    = document.getElementById('constitutionBox');
     const logoPreview = document.getElementById('orgLogoPreview');
 
-    if (!gradeBox.classList.contains('has-file') || !constBox.classList.contains('has-file') || logoPreview.classList.contains('hidden')) {
+    if (!constBox.classList.contains('has-file') || logoPreview.classList.contains('hidden')) {
         if (!confirm('Some documents are still missing. Submit anyway?')) return;
     }
     alert('All requirements have been submitted successfully!\n\nPlease ensure you have completed all forms and uploaded all required documents. OSA-SACDEV will evaluate your re-registration requirements before granting recognition.');
 }
+
+// ═══════════════════════════════════════════════════
+// SUBMISSION SUMMARY
+// ═══════════════════════════════════════════════════
 
 function scrollToSection(id) {
     const el = document.getElementById(id);
@@ -1370,6 +1595,7 @@ function buildSummary() {
 
     container.innerHTML = '';
 
+    // ── Helper ──────────────────────────────────────
     function val(id) {
         const el = document.getElementById(id);
         return el ? el.value.trim() : '';
@@ -1424,20 +1650,25 @@ function buildSummary() {
         return section;
     }
 
+    // ── Account Info ────────────────────────────────
     container.appendChild(buildSection('ACCOUNT', null, [
-        { label: 'XU Email', value: currentState.userEmail, required: true },
-        { label: 'Organization', value: currentState.selectedOrg, required: true },
-        { label: 'Council', value: currentState.selectedCouncil ? (currentState.selectedCouncil + ' – ' + (councils[currentState.selectedCouncil]?.name || '')) : '', required: true },
+        { label: 'XU Email', value: currentState.userEmail || '(logged in via Google / will be recorded on submit)', required: false },
     ], 'summary-account'));
 
+    // ── Org Info ────────────────────────────────────
     container.appendChild(buildSection('ORGANIZATION INFORMATION', null, [
-        { label: 'Org Cluster', value: val('infoCluster'), required: true },
-        { label: "President's Name", value: val('infoPresidentName'), required: true },
-        { label: "President's Mobile", value: val('infoPresidentMobile'), required: true },
-        { label: "President's Email", value: val('infoPresidentEmail'), required: true },
-        { label: 'Moderator Nominee', value: val('infoModeratorName'), required: true },
+        { label: 'Organization Name',     value: currentState.orgName  || val('infoOrgName'),  required: true },
+        { label: 'Organization Email',    value: currentState.orgEmail || val('infoOrgEmail'), required: true },
+        { label: 'Type of Organization',  value: currentState.orgType  || val('infoOrgType'),  required: true },
+        { label: 'Org Cluster',           value: val('infoCluster'),   required: true },
+        { label: 'Year Established',      value: currentState.yearEstablished || val('infoYearEstablished'), required: false },
+        { label: "President's Name",     value: val('infoPresidentName'),   required: true },
+        { label: "President's Mobile",   value: val('infoPresidentMobile'), required: true },
+        { label: "President's Email",    value: val('infoPresidentEmail'),  required: true },
+        { label: 'Moderator Nominee',     value: val('infoModeratorName'),   required: true },
     ], 'summary-orginfo'));
 
+    // ── Form B-1 ─────────────────────────────────
     container.appendChild(buildSection('STRATEGIC PLAN', 'Form B-1', [
         { label: 'Org Acronym', value: val('stratAcronym'), required: true },
         { label: 'Full Org Name', value: val('stratOrgFullName'), required: true },
@@ -1445,6 +1676,7 @@ function buildSummary() {
         { label: 'Vision Statement', value: val('stratVision') ? '+ Filled' : '', required: true },
     ], 'summary-b1'));
 
+    // ── Form B-2 ─────────────────────────────────
     container.appendChild(buildSection("PRESIDENT'S PROFILE", 'Form B-2', [
         { label: 'Full Name', value: val('presFullName'), required: true },
         { label: 'Course and Year', value: val('presCourseYear'), required: true },
@@ -1454,6 +1686,7 @@ function buildSummary() {
         { label: 'Photo ID', value: imgFilled('presPhotoPreview') ? '+ Uploaded' : '', required: false },
     ], 'summary-b2'));
 
+    // ── Form B-3 ─────────────────────────────────
     const officerRows = document.getElementById('officersTableBody')?.querySelectorAll('tr') || [];
     let officerCount = 0;
     officerRows.forEach(tr => {
@@ -1461,19 +1694,24 @@ function buildSummary() {
         if (inputs[0]?.value.trim() && inputs[1]?.value.trim()) officerCount++;
     });
     container.appendChild(buildSection('ORGANIZATION OFFICERS', 'Form B-3', [
-        { label: 'Officers Listed', value: officerCount > 0 ? `${officerCount} officer(s)` : '', required: true },
+        { label: 'Officers Listed',  value: officerCount > 0 ? `${officerCount} officer(s)` : '', required: true },
+        { label: 'QPI Fields',       value: 'Sem 1, Sem 2, Intercession per officer', required: false },
     ], 'summary-b3'));
 
+    // ── Form B-4 ─────────────────────────────────
     const memberRows = document.getElementById('membersTableBody')?.querySelectorAll('tr') || [];
     let memberCount = 0;
     memberRows.forEach(tr => {
         const inputs = tr.querySelectorAll('input');
         if (inputs[0]?.value.trim()) memberCount++;
     });
+    const isExtraCurricular = (currentState.orgType || '').toLowerCase() === 'extra-curricular';
     container.appendChild(buildSection('ORGANIZATION MEMBERS', 'Form B-4', [
-        { label: 'Members Listed', value: memberCount > 0 ? `${memberCount} member(s)` : 'None / Not applicable', required: false },
+        { label: 'Applicable',     value: isExtraCurricular ? 'Yes (Extra-Curricular)' : 'Not required for this org type', required: false },
+        { label: 'Members Listed', value: isExtraCurricular ? (memberCount > 0 ? `${memberCount} member(s)` : '') : 'N/A', required: isExtraCurricular },
     ], 'summary-b4'));
 
+    // ── Form B-5.1 ───────────────────────────────
     container.appendChild(buildSection("MODERATOR'S PROFILE", 'Form B-5.1', [
         { label: 'Full Name', value: val('modFullName'), required: true },
         { label: 'Nominating Org', value: val('modNominatingOrg'), required: true },
@@ -1484,12 +1722,13 @@ function buildSummary() {
         { label: 'E-Signature', value: imgFilled('modSignaturePreview') ? '+ Uploaded' : '', required: true },
     ], 'summary-b5'));
 
-    container.appendChild(buildSection('GRADE SLIPS, CONSTITUTION & LOGO', 'Form B-6 & Docs', [
-        { label: 'Grade Slips (Form B-6)', value: fileFilled('gradeSlipsBox') ? '+ Uploaded' : '', required: true },
+    // ── Form B-6 & Documents ─────────────────────
+    container.appendChild(buildSection('CONSTITUTION & ORGANIZATION LOGO', 'Documents', [
         { label: 'Organization Constitution', value: fileFilled('constitutionBox') ? '+ Uploaded' : '', required: true },
-        { label: 'Organization Logo', value: imgFilled('orgLogoPreview') ? '+ Uploaded' : '', required: true },
+        { label: 'Organization Logo / Seal',  value: imgFilled('orgLogoPreview')   ? '+ Uploaded' : '', required: true },
     ], 'summary-b6'));
 
+    // ── Warning banner ───────────────────────────
     if (missingFields.length > 0) {
         warning.classList.remove('hidden');
         document.getElementById('summaryWarningText').innerHTML =
@@ -1505,6 +1744,7 @@ function buildSummary() {
     }
 }
 
+// Override submitAllForms to use summary page gate
 async function submitAllForms() {
     const submitBtn = document.getElementById('finalSubmitBtn');
     if (submitBtn && submitBtn.disabled) {
@@ -1513,18 +1753,33 @@ async function submitAllForms() {
     }
     saveFormData('gradeAndDocs');
 
+    // Build submission payload — include strategic plan table data for publish feature
+    const _spData = loadFormData('strategicPlan') || {};
     const submission = {
-        org: currentState.selectedOrg || '—',
-        council: currentState.selectedCouncil || '—',
-        president: document.getElementById('presFullName')?.value?.trim() || currentState.presidentName || '—',
-        email: currentState.userEmail || '—',
-        cluster: document.getElementById('infoCluster')?.value || currentState.orgCluster || '—',
+        org:             currentState.selectedOrg  || currentState.orgName || '—',
+        orgName:         currentState.orgName      || currentState.selectedOrg || '—',
+        orgEmail:        currentState.orgEmail     || '—',
+        orgType:         currentState.orgType      || '—',
+        council:         currentState.selectedCouncil || '—',
+        cluster:         document.getElementById('infoCluster')?.value || currentState.orgCluster || '—',
+        yearEstablished: currentState.yearEstablished || '',
+        president:       document.getElementById('presFullName')?.value?.trim() || currentState.presidentName || '—',
+        email:           currentState.userEmail || '—',
         presidentMobile: currentState.presidentMobile || '—',
-        presidentEmail: currentState.presidentEmail || '—',
-        moderatorName: currentState.moderatorName || '—',
+        presidentEmail:  currentState.presidentEmail  || '—',
+        moderatorName:   currentState.moderatorName   || '—',
+        // Strategic plan fields (for publish feature)
+        stratAcronym:    _spData.stratAcronym    || '',
+        stratOrgFullName:_spData.stratOrgFullName || '',
+        stratMission:    _spData.stratMission    || '',
+        stratVision:     _spData.stratVision     || '',
+        'table_bodyOrgDev':   _spData['__table_bodyOrgDev']   || [],
+        'table_bodyStudServ': _spData['__table_bodyStudServ']  || [],
+        'table_bodyCommInv':  _spData['__table_bodyCommInv']   || [],
         submittedAt: new Date().toLocaleString('en-PH')
     };
 
+    // Submit to Firebase via backend
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting…';

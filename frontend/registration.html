@@ -100,7 +100,7 @@
                     <div class="req-item"><span class="req-check">&#9744;</span> Form B-3: Organization Officers (with Finance Information)</div>
                     <div class="req-item"><span class="req-check">&#9744;</span> Form B-4: Organization Members <em>(for Extra-Curricular Organizations Only)</em></div>
                     <div class="req-item"><span class="req-check">&#9744;</span> Form B-5.1: Moderator's Profile</div>
-                    <div class="req-item"><span class="req-check">&#9744;</span> Form B-6: Compiled Second Semester Grades of all Officers</div>
+                    <div class="req-item"><span class="req-check">&#9744;</span> Form B-6 &amp; Documents: Organization Constitution and Logo / Seal</div>
                     <div class="req-item"><span class="req-check">&#9744;</span> Latest version of your org logo/seal</div>
                 </div>
             </div>
@@ -175,6 +175,7 @@
         </div>
     </div>
 
+    <!-- ORG INFO / WELCOME -->
     <div id="orgInfo" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('guidelines')">← Back</button>
@@ -259,9 +260,16 @@
                         <input type="email" id="infoPresidentEmail" class="form-input" placeholder="Enter president's email address">
                     </div>
                 </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label class="form-label">Name of Moderator-Nominee <span class="required">*</span></label>
-                    <input type="text" id="infoModeratorName" class="form-input" placeholder="Enter moderator-nominee's full name">
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Organization Email <span class="required">*</span></label>
+                        <input type="email" id="infoOrgEmail" class="form-input" placeholder="e.g. orgname@xu.edu.ph or orgname@gmail.com">
+                        <div class="field-hint">Official email address of the organization</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Name of Moderator-Nominee <span class="required">*</span></label>
+                        <input type="text" id="infoModeratorName" class="form-input" placeholder="Enter moderator-nominee's full name">
+                    </div>
                 </div>
             </div>
 
@@ -272,6 +280,7 @@
         </div>
     </div>
 
+    <!-- STRATEGIC PLAN -->
     <div id="strategicPlan" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('orgInfo')">← Back</button>
@@ -312,6 +321,7 @@
                 </div>
             </div>
 
+            <!-- B: Org Dev -->
             <div class="strat-section">
                 <div class="strat-section-header">
                     <div class="strat-section-label">B</div>
@@ -348,6 +358,7 @@
                 <button class="btn-add-row" onclick="addRow('bodyOrgDev','totalOrgDev')">+ Add Row</button>
             </div>
 
+            <!-- C: Student Services -->
             <div class="strat-section">
                 <div class="strat-section-header">
                     <div class="strat-section-label">C</div>
@@ -384,6 +395,7 @@
                 <button class="btn-add-row" onclick="addRow('bodyStudServ','totalStudServ')">+ Add Row</button>
             </div>
 
+            <!-- D: Community Involvement -->
             <div class="strat-section">
                 <div class="strat-section-header">
                     <div class="strat-section-label">D</div>
@@ -420,6 +432,7 @@
                 <button class="btn-add-row" onclick="addRow('bodyCommInv','totalCommInv')">+ Add Row</button>
             </div>
 
+            <!-- Budget Summary -->
             <div class="strat-section">
                 <div class="strat-section-header" style="margin-bottom:16px;">
                     <div class="strat-section-label" style="background:#475569;">&#931;</div>
@@ -453,6 +466,7 @@
                 </div>
             </div>
 
+            <!-- Signatories -->
 
             <div class="nav">
                 <div class="nav-left"><button class="btn btn-secondary" onclick="goToPage('orgInfo')">← Back</button></div>
@@ -461,6 +475,7 @@
         </div>
     </div>
 
+    <!-- PRESIDENT'S PROFILE (Form B-2) -->
     <div id="presidentProfile" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('strategicPlan')">← Back</button>
@@ -470,6 +485,7 @@
                 <p>Please provide the complete profile information of the organization president.</p>
             </div>
 
+            <!-- Photo ID Upload -->
             <div class="form" style="margin-bottom:24px;">
                 <div class="form-group">
                     <label class="form-label">Photo ID <span class="required">*</span></label>
@@ -742,6 +758,7 @@
         </div>
     </div>
 
+    <!-- ORGANIZATION OFFICERS (Form B-3) -->
     <div id="orgOfficers" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('presidentProfile')">← Back</button>
@@ -782,6 +799,7 @@
         </div>
     </div>
 
+    <!-- ORGANIZATION MEMBERS (Form B-4) -->
     <div id="orgMembers" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('orgOfficers')">← Back</button>
@@ -828,10 +846,11 @@
                     <button class="btn btn-primary" onclick="submitAndNext('orgMembers','moderatorProfile')">Save &amp; Next &#8594;</button>
                 </div>
             </div>
-            </div>
+            </div><!-- end orgMembersForm -->
         </div>
     </div>
 
+    <!-- MODERATOR PROFILE (Form B-5.1) -->
     <div id="moderatorProfile" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('orgMembers')">← Back</button>
@@ -846,6 +865,7 @@
                 <p class="guidelines-body">Every start of the academic year, student organizations are required to accomplish re-registration requirements which include moderator nomination forms and profile forms. Please be advised that a student organization has chosen you as their nominee. Please accomplish this form accurately and return it to your nominating organization for submission.</p>
             </div>
 
+            <!-- Photo ID Upload -->
             <div class="form" style="margin-bottom:24px;">
                 <div class="form-group">
                     <label class="form-label">Photo ID <span class="required">*</span></label>
@@ -1047,11 +1067,12 @@
         </div>
     </div>
 
+    <!-- GRADE SLIPS + CONSTITUTION + LOGO (Combined Form) -->
     <div id="gradeAndDocs" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('moderatorProfile')">← Back</button>
             <div class="box">
-                <div class="form-badge">Form B-6 &amp; Documents</div>
+                <div class="form-badge">Documents</div>
                 <h1>Constitution &amp; Organization Logo</h1>
                 <p>Upload all remaining required documents to complete your re-registration.</p>
             </div>
@@ -1102,6 +1123,7 @@
         </div>
     </div>
 
+    <!-- SUBMISSION SUMMARY -->
     <div id="submissionSummary" class="page hidden">
         <div class="container-md">
             <button class="btn-back" onclick="goToPage('gradeAndDocs')">&#8592; Back</button>
@@ -1110,8 +1132,10 @@
                 <p>Please review all your information before final submission. All required fields (<span class="required">*</span>) must be filled in.</p>
             </div>
 
+            <!-- Summary layout: sidebar nav + main content -->
             <div class="summary-layout">
 
+                <!-- Left sidebar navigation -->
                 <nav class="summary-sidenav" id="summarySidenav">
                     <div class="summary-sidenav-title">Forms</div>
                     <a class="summary-sidenav-link" href="#summary-account" onclick="scrollToSection('summary-account')">Account</a>
@@ -1132,7 +1156,7 @@
                         <span class="summary-sidenav-badge">B-5.1</span> Moderator
                     </a>
                     <a class="summary-sidenav-link" href="#summary-b6" onclick="scrollToSection('summary-b6')">
-                        <span class="summary-sidenav-badge">B-6</span> Documents
+                        <span class="summary-sidenav-badge">Docs</span> Documents
                     </a>
                     <div class="summary-sidenav-divider"></div>
                     <div class="summary-sidenav-subtitle">Go to Form</div>
@@ -1145,6 +1169,7 @@
                     <button class="summary-sidenav-goto" onclick="goToPage('gradeAndDocs')">&#8594; Documents</button>
                 </nav>
 
+                <!-- Main summary content -->
                 <div class="summary-main">
                     <div id="summaryContent"></div>
                     <div id="summaryWarning" class="summary-warning hidden">
@@ -1161,6 +1186,7 @@
         </div>
     </div>
 
+    <!-- GLOBAL FORM SIDE NAVIGATION (shown on all student form pages) -->
     <div id="formSidenav" class="form-sidenav hidden">
         <div class="form-sidenav-inner">
             <div class="form-sidenav-header">Registration Forms</div>
@@ -1190,7 +1216,7 @@
                 <span class="form-sidenav-label">Moderator</span>
             </a>
             <a class="form-sidenav-item" id="snav-gradeAndDocs" onclick="snavGo('gradeAndDocs')">
-                <span class="form-sidenav-step">B-6</span>
+                <span class="form-sidenav-step">Docs</span>
                 <span class="form-sidenav-label">Documents</span>
             </a>
             <div class="form-sidenav-divider"></div>
@@ -1204,16 +1230,25 @@
     <script type="module" src="firebase-auth.js"></script>
     <script src="script.js"></script>
     <script>
+        // goToPage on registration.html handles all the registration flow internally
+        // Cross-page navigation:
+        //   goToPage('dashboard') → index.html
+        //   goToPage('loginPage') → login.html
+        //   After logout → index.html
 
         const _origGoToPage = window.goToPage;
 
+        // Wrap goToPage to intercept cross-page navigations
         const _regGoToPage = function(pageName) {
             if (pageName === 'dashboard') { window.location.href = 'index.html'; return; }
             if (pageName === 'loginPage') { window.location.href = 'login.html'; return; }
+            // All other pages handled internally by script.js
             if (_origGoToPage) _origGoToPage(pageName);
         };
 
+        // Override after script.js defines it
         window.addEventListener('DOMContentLoaded', () => {
+            // Restore logged-in navbar state if session exists
             const savedEmail = sessionStorage.getItem('sacdev_userEmail');
             if (savedEmail) {
                 const navUser  = document.getElementById('navbarUser');
@@ -1225,13 +1260,32 @@
                     currentState.userEmail  = savedEmail;
                 }
             }
+
+            // Re-wrap goToPage now that script.js has loaded
             const scriptGoToPage = window.goToPage;
             window.goToPage = function(pageName) {
                 if (pageName === 'dashboard') { window.location.href = 'index.html'; return; }
                 if (pageName === 'loginPage') { window.location.href = 'login.html'; return; }
                 if (scriptGoToPage) scriptGoToPage(pageName);
             };
-            window.goToPage('login');
+
+            // Registration pages that live on this file
+            const regPages = [
+                'login','councilSelect','orgSelect','guidelines','orgInfo',
+                'strategicPlan','presidentProfile','orgOfficers','orgMembers',
+                'moderatorProfile','gradeAndDocs','submissionSummary'
+            ];
+
+            // Restore last visited page; fall back to org-type selector
+            let startPage = 'login';
+            try {
+                const saved = sessionStorage.getItem('sacdev_currentPage');
+                if (saved && regPages.includes(saved) && document.getElementById(saved)) {
+                    startPage = saved;
+                }
+            } catch(e) {}
+
+            window.goToPage(startPage);
         });
 
         function handleLogout() {
