@@ -1,7 +1,8 @@
-const express = require('express');
-const cors    = require('cors');
-const admin   = require('firebase-admin');
-const path    = require('path');
+const express    = require('express');
+const cors       = require('cors');
+const admin      = require('firebase-admin');
+const path       = require('path');
+const nodemailer = require('nodemailer');
 
 const app = express();
 app.use(cors());
@@ -11,15 +12,23 @@ const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  projectId:  serviceAccount.project_id   // explicit — avoids region/discovery issues
+  projectId:  serviceAccount.project_id
 });
 
-// For firebase-admin v13, regional Firestore requires using getFirestore() 
-// with an explicit database path or via environment variable
-process.env.FIRESTORE_PREFER_REST = '1'; // Use REST API instead of gRPC to avoid region routing issues
+process.env.FIRESTORE_PREFER_REST = '1';
 
 const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
+
+// ── EMAIL TRANSPORTER ─────────────────────────────────────────────────────────
+// Gmail SMTP — uses App Password (no OAuth needed)
+const mailer = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'mardompaurysacdev@gmail.com',
+    pass: process.env.GMAIL_APP_PASSWORD || ''   // set via env var for security
+  }
+});
 
 // ── STARTUP CONNECTIVITY CHECK ────────────────────────────────────────────────
 // Runs once on server start. If this fails, all Firestore writes will fail too.
@@ -111,6 +120,9 @@ app.post('/submit', async (req, res) => {
       published: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    // Run conflict detection asynchronously (non-blocking)
+    detectAndStoreConflicts(docRef.id, data).catch(e => console.error('Conflict detection failed:', e));
 
     res.json({ message: 'Submitted successfully', id: docRef.id });
   } catch (err) {
@@ -319,6 +331,162 @@ app.get('/submission-status', async (req, res) => {
     });
   } catch (err) {
     console.error('Submission-status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── OFFICER CONFLICT DETECTION ────────────────────────────────────────────────
+// Executive positions subject to conflict detection
+const EXEC_POSITIONS = ['president','vice president','secretary','treasurer','auditor'];
+
+function isExecPosition(position) {
+  return EXEC_POSITIONS.some(ep => (position || '').toLowerCase().trim() === ep);
+}
+
+// Called automatically on /submit — scans all submissions for Student ID conflicts
+// and writes conflict records to the 'conflicts' collection.
+async function detectAndStoreConflicts(newSubmissionId, newSubmission) {
+  try {
+    const officers = newSubmission.officers || [];
+    const execOfficers = officers.filter(o => isExecPosition(o.position) && o.studentId);
+
+    if (execOfficers.length === 0) return;
+
+    // Fetch all other approved/pending submissions
+    const snapshot = await db.collection('submissions').get();
+    const otherSubs = snapshot.docs
+      .filter(doc => doc.id !== newSubmissionId)
+      .map(doc => ({ id: doc.id, ...doc.data() }));
+
+    for (const officer of execOfficers) {
+      for (const other of otherSubs) {
+        const otherOfficers = other.officers || [];
+        const conflicts = otherOfficers.filter(oo =>
+          isExecPosition(oo.position) &&
+          oo.studentId &&
+          oo.studentId.trim() === officer.studentId.trim()
+        );
+
+        for (const conflictingOfficer of conflicts) {
+          // Check if this conflict already exists
+          const existing = await db.collection('conflicts')
+            .where('studentId', '==', officer.studentId.trim())
+            .where('submissionId1', 'in', [newSubmissionId, other.id])
+            .get();
+
+          if (!existing.empty) continue; // already recorded
+
+          await db.collection('conflicts').add({
+            studentId:    officer.studentId.trim(),
+            studentName:  officer.name || '',
+            submissionId1: newSubmissionId,
+            orgName1:      newSubmission.org || newSubmission.orgName || '—',
+            orgEmail1:     newSubmission.orgEmail || '',
+            position1:     officer.position,
+            submissionId2: other.id,
+            orgName2:      other.org || other.orgName || '—',
+            orgEmail2:     other.orgEmail || '',
+            position2:     conflictingOfficer.position,
+            notified:      false,
+            resolvedAt:    null,
+            createdAt:     admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Conflict detection error:', err.message);
+  }
+}
+
+
+// ── GET ALL CONFLICTS (admin) ─────────────────────────────────────────────────
+app.get('/conflicts', async (req, res) => {
+  try {
+    const snapshot = await db.collection('conflicts').orderBy('createdAt', 'desc').get();
+    const conflicts = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.()?.toLocaleString('en-PH') || '—'
+    }));
+    res.json(conflicts);
+  } catch (err) {
+    console.error('Fetch conflicts error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── NOTIFY ORGANIZATIONS ABOUT CONFLICT (admin-triggered) ────────────────────
+app.post('/conflicts/:id/notify', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const doc = await db.collection('conflicts').doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Conflict not found' });
+
+    const c = doc.data();
+
+    const subject = `[SACDEV SOMS] Officer Conflict Notice — ${c.studentName || c.studentId}`;
+    const bodyHtml = `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+        <div style="background:#1a2f5e;padding:18px 24px;border-radius:8px 8px 0 0;">
+          <h2 style="color:#fff;margin:0;font-size:18px;">Officer Conflict Notice</h2>
+          <p style="color:#c9a84c;margin:4px 0 0;font-size:13px;">OSA-SACDEV Student Organization Management System</p>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+          <p style="color:#334155;margin-top:0;">This is to inform you that a <strong>student officer conflict</strong> has been detected in the submitted re-registration requirements.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
+            <tr style="background:#f8fafc;">
+              <th style="text-align:left;padding:8px 12px;border:1px solid #e2e8f0;color:#64748b;">Field</th>
+              <th style="text-align:left;padding:8px 12px;border:1px solid #e2e8f0;color:#64748b;">Details</th>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Student ID</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.studentId}</td>
+            </tr>
+            <tr style="background:#f8fafc;">
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Student Name</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.studentName || '—'}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Organization 1</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.orgName1} — <em>${c.position1}</em></td>
+            </tr>
+            <tr style="background:#f8fafc;">
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Organization 2</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.orgName2} — <em>${c.position2}</em></td>
+            </tr>
+          </table>
+          <p style="color:#475569;font-size:13px;">Please coordinate with OSA-SACDEV to resolve this conflict at your earliest convenience.</p>
+          <p style="color:#475569;font-size:13px;margin-bottom:0;">For inquiries, contact <a href="mailto:sacdev@xu.edu.ph" style="color:#1a2f5e;">sacdev@xu.edu.ph</a></p>
+        </div>
+        <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:12px;">OSA-SACDEV • Xavier University • Cagayan de Oro City</p>
+      </div>
+    `;
+
+    const recipients = [c.orgEmail1, c.orgEmail2].filter(Boolean);
+    if (recipients.length === 0) {
+      return res.status(400).json({ error: 'No valid email addresses found for involved organizations.' });
+    }
+
+    await mailer.sendMail({
+      from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
+      to:      recipients.join(', '),
+      subject: subject,
+      html:    bodyHtml
+    });
+
+    // Mark conflict as notified
+    await db.collection('conflicts').doc(id).update({
+      notified:   true,
+      notifiedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ message: 'Notification sent successfully.', recipients });
+  } catch (err) {
+    console.error('Notify conflict error:', err);
     res.status(500).json({ error: err.message });
   }
 });
