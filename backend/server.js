@@ -3,6 +3,24 @@ const cors       = require('cors');
 const admin      = require('firebase-admin');
 const path       = require('path');
 const nodemailer = require('nodemailer');
+const fs         = require('fs');
+
+// Load .env manually (no dotenv dependency needed)
+try {
+  const envPath = path.join(__dirname, '..', '.env');
+  const envFile = fs.readFileSync(envPath, 'utf8');
+  envFile.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) return;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim();
+    if (key && !process.env[key]) process.env[key] = val;
+  });
+} catch (e) {
+  // .env not found — rely on environment variables set by the host/Docker
+}
 
 const app = express();
 app.use(cors());
@@ -20,27 +38,25 @@ process.env.FIRESTORE_PREFER_REST = '1';
 const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
 
-// ── EMAIL TRANSPORTER ─────────────────────────────────────────────────────────
-// Gmail SMTP — uses App Password (no OAuth needed)
+
 const mailer = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: 'mardompaurysacdev@gmail.com',
-    pass: process.env.GMAIL_APP_PASSWORD || ''   // set via env var for security
+    pass: process.env.GMAIL_APP_PASSWORD || '' 
   }
 });
 
-// ── STARTUP CONNECTIVITY CHECK ────────────────────────────────────────────────
-// Runs once on server start. If this fails, all Firestore writes will fail too.
+
 (async () => {
   try {
     await db.collection('_health').doc('ping').set({
       ok: true,
       ts: admin.firestore.FieldValue.serverTimestamp()
     });
-    console.log('✅ Firestore connection verified — database is writable.');
+    console.log('Firestore connection verified — database is writable.');
   } catch (err) {
-    console.error('❌ Firestore startup check FAILED:');
+    console.error('Firestore startup check FAILED:');
     console.error('   Code   :', err.code);
     console.error('   Message:', err.message);
     console.error('   Details:', JSON.stringify(err.details || err.metadata || ''));
@@ -58,7 +74,6 @@ const mailer = nodemailer.createTransport({
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 
-// ── FIREBASE CONNECTION TEST ──────────────────────────────────────────────────
 app.get('/firebase-test', async (req, res) => {
   try {
     await db.collection('test').doc('connection').set({
@@ -72,26 +87,19 @@ app.get('/firebase-test', async (req, res) => {
 });
 
 
-// ── SUBMIT REGISTRATION ───────────────────────────────────────────────────────
 app.post('/submit', async (req, res) => {
   try {
     const raw = req.body;
 
-    // Firestore forbids field names starting with __.
-    // Also strip base64 image data (data:image/...) and oversized strings —
-    // files/photos are handled separately (Google Drive link, coming soon).
     const sanitize = (obj) => {
       if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
       const out = {};
       for (const [k, v] of Object.entries(obj)) {
-        // Skip base64 image fields entirely
         if (typeof v === 'string' && v.startsWith('data:')) continue;
-        // Skip fields whose key indicates a photo/signature/logo preview
         if (/img_|Photo|Signature|Logo|preview/i.test(k) && typeof v === 'string' && v.length > 500) continue;
         const safeKey = k.startsWith('__') ? k.slice(2) : k;
         if (Array.isArray(v)) {
-          // Firestore does not support nested arrays.
-          // Convert array-of-arrays to array-of-objects with indexed keys.
+
           const hasNestedArray = v.some(item => Array.isArray(item));
           if (hasNestedArray) {
             out[safeKey] = v.map((row, rowIdx) => {
@@ -121,8 +129,45 @@ app.post('/submit', async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // Run conflict detection asynchronously (non-blocking)
     detectAndStoreConflicts(docRef.id, data).catch(e => console.error('Conflict detection failed:', e));
+
+    // Send submission confirmation email to the organization's registered email
+    try {
+      const toEmail = data.orgEmail || '';
+      const orgName = data.org || data.orgName || 'Your Organization';
+
+      if (toEmail) {
+        const confirmHtml = `
+          <div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+            <div style="background:#1a2f5e;padding:18px 24px;border-radius:8px 8px 0 0;">
+              <h2 style="color:#fff;margin:0;font-size:18px;">Submission Received</h2>
+              <p style="color:#c9a84c;margin:4px 0 0;font-size:13px;">OSA-SACDEV Student Organization Management System</p>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+              <p style="color:#334155;margin-top:0;">Dear <strong>${orgName}</strong>,</p>
+              <p style="color:#334155;">We have successfully received your re-registration requirements for Academic Year 2026–2027. Your submission is now being reviewed by OSA-SACDEV.</p>
+              <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 18px;margin:18px 0;">
+                <p style="margin:0;color:#1d4ed8;font-weight:600;font-size:14px;">⏳ Status: Under Review</p>
+                <p style="margin:6px 0 0;color:#1e40af;font-size:13px;">Organization: ${orgName}</p>
+                <p style="margin:4px 0 0;color:#1e40af;font-size:13px;">Submitted: ${new Date().toLocaleString('en-PH')}</p>
+              </div>
+              <p style="color:#475569;font-size:13px;">You will receive another email once your submission has been evaluated. Please ensure all submitted documents are complete and accurate.</p>
+              <p style="color:#475569;font-size:13px;margin-bottom:0;">For inquiries, contact <a href="mailto:sacdev@xu.edu.ph" style="color:#1a2f5e;">sacdev@xu.edu.ph</a></p>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:12px;">OSA-SACDEV • Xavier University • Cagayan de Oro City</p>
+          </div>
+        `;
+
+        await mailer.sendMail({
+          from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
+          to:      toEmail,
+          subject: `[SACDEV SOMS] Submission Received — ${orgName}`,
+          html:    confirmHtml
+        });
+      }
+    } catch (mailErr) {
+      console.error('Submission confirmation email error:', mailErr.message);
+    }
 
     res.json({ message: 'Submitted successfully', id: docRef.id });
   } catch (err) {
@@ -134,7 +179,6 @@ app.post('/submit', async (req, res) => {
 });
 
 
-// ── GET ALL SUBMISSIONS (admin) ───────────────────────────────────────────────
 app.get('/submissions', async (req, res) => {
   try {
     const snapshot = await db.collection('submissions').get();
@@ -149,7 +193,7 @@ app.get('/submissions', async (req, res) => {
           createdAt: d.createdAt?.toDate?.()?.toLocaleString('en-PH') || '—'
         };
       })
-      .sort((a, b) => b._ts - a._ts)  // newest first, no Firestore index needed
+      .sort((a, b) => b._ts - a._ts)  
       .map(({ _ts, ...rest }) => rest);
 
     res.json(submissions);
@@ -166,15 +210,204 @@ app.patch('/submissions/:id/status', async (req, res) => {
     const { id }     = req.params;
     const { status } = req.body;
 
-    const allowed = ['pending', 'approved', 'rejected'];
+    const { reason } = req.body;
+
+    const allowed = ['pending', 'approved', 'rejected', 'revision'];
     if (!allowed.includes(status)) {
       return res.status(400).json({ error: `Status must be one of: ${allowed.join(', ')}` });
     }
 
-    await db.collection('submissions').doc(id).update({
+    const updateData = {
       status,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    };
+    if (status === 'rejected' && reason)  updateData.rejectionReason = reason;
+    if (status === 'revision' && reason)  updateData.revisionNotes   = reason;
+
+    await db.collection('submissions').doc(id).update(updateData);
+
+    // Send approval email notification to the organization's registered email
+    if (status === 'approved') {
+      try {
+        const subDoc = await db.collection('submissions').doc(id).get();
+        const sub    = subDoc.data() || {};
+        const toEmail = sub.orgEmail || '';
+        const orgName = sub.org || sub.orgName || 'Your Organization';
+
+        if (toEmail) {
+          const approvalHtml = `
+            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+              <div style="background:#1a2f5e;padding:18px 24px;border-radius:8px 8px 0 0;">
+                <h2 style="color:#fff;margin:0;font-size:18px;">Re-Registration Approved</h2>
+                <p style="color:#c9a84c;margin:4px 0 0;font-size:13px;">OSA-SACDEV Student Organization Management System</p>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+                <p style="color:#334155;margin-top:0;">Dear <strong>${orgName}</strong>,</p>
+                <p style="color:#334155;">We are pleased to inform you that your organization's re-registration requirements for Academic Year 2026–2027 have been <strong style="color:#16a34a;">reviewed and approved</strong> by OSA-SACDEV.</p>
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin:18px 0;">
+                  <p style="margin:0;color:#15803d;font-weight:600;font-size:14px;">✓ Status: Approved</p>
+                  <p style="margin:6px 0 0;color:#166534;font-size:13px;">Organization: ${orgName}</p>
+                </div>
+                <p style="color:#475569;font-size:13px;">Your organization is now officially recognized for the current academic year. Should you have any questions or concerns, please do not hesitate to reach out to us.</p>
+                <p style="color:#475569;font-size:13px;margin-bottom:0;">For inquiries, contact <a href="mailto:sacdev@xu.edu.ph" style="color:#1a2f5e;">sacdev@xu.edu.ph</a></p>
+              </div>
+              <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:12px;">OSA-SACDEV • Xavier University • Cagayan de Oro City</p>
+            </div>
+          `;
+
+          await mailer.sendMail({
+            from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
+            to:      toEmail,
+            subject: `[SACDEV SOMS] Re-Registration Approved — ${orgName}`,
+            html:    approvalHtml
+          });
+        }
+      } catch (mailErr) {
+        // Log but don't fail the status update if email sending fails
+        console.error('Approval email error:', mailErr.message);
+      }
+    }
+
+    // Send rejection email notification
+    if (status === 'rejected') {
+      try {
+        const subDoc = await db.collection('submissions').doc(id).get();
+        const sub    = subDoc.data() || {};
+        const toEmail = sub.orgEmail || '';
+        const orgName = sub.org || sub.orgName || 'Your Organization';
+
+        if (toEmail) {
+          const reasonBlock = reason
+            ? `<div style="background:#fef2f2;border-left:3px solid #dc2626;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;">
+                <p style="margin:0;font-size:12px;font-weight:600;color:#991b1b;">Reason provided by OSA-SACDEV:</p>
+                <p style="margin:6px 0 0;font-size:13px;color:#7f1d1d;white-space:pre-wrap;">${reason}</p>
+               </div>`
+            : '';
+
+          const rejectionHtml = `
+            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+              <div style="background:#1a2f5e;padding:18px 24px;border-radius:8px 8px 0 0;">
+                <h2 style="color:#fff;margin:0;font-size:18px;">Re-Registration Not Approved</h2>
+                <p style="color:#c9a84c;margin:4px 0 0;font-size:13px;">OSA-SACDEV Student Organization Management System</p>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+                <p style="color:#334155;margin-top:0;">Dear <strong>${orgName}</strong>,</p>
+                <p style="color:#334155;">After careful review, we regret to inform you that your organization's re-registration requirements for Academic Year 2026–2027 have <strong style="color:#dc2626;">not been approved</strong> by OSA-SACDEV.</p>
+                <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 18px;margin:18px 0;">
+                  <p style="margin:0;color:#dc2626;font-weight:600;font-size:14px;">✕ Status: Not Approved</p>
+                  <p style="margin:6px 0 0;color:#991b1b;font-size:13px;">Organization: ${orgName}</p>
+                </div>
+                ${reasonBlock}
+                <p style="color:#475569;font-size:13px;">Please contact OSA-SACDEV directly for further details regarding this decision and any next steps that may be available to your organization.</p>
+                <p style="color:#475569;font-size:13px;margin-bottom:0;">For inquiries, contact <a href="mailto:sacdev@xu.edu.ph" style="color:#1a2f5e;">sacdev@xu.edu.ph</a></p>
+              </div>
+              <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:12px;">OSA-SACDEV • Xavier University • Cagayan de Oro City</p>
+            </div>
+          `;
+
+          await mailer.sendMail({
+            from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
+            to:      toEmail,
+            subject: `[SACDEV SOMS] Re-Registration Not Approved — ${orgName}`,
+            html:    rejectionHtml
+          });
+        }
+      } catch (mailErr) {
+        console.error('Rejection email error:', mailErr.message);
+      }
+    }
+
+    // Send revision request email notification
+    if (status === 'revision') {
+      try {
+        const subDoc = await db.collection('submissions').doc(id).get();
+        const sub    = subDoc.data() || {};
+        const toEmail = sub.orgEmail || '';
+        const orgName = sub.org || sub.orgName || 'Your Organization';
+
+        if (toEmail) {
+          const notesBlock = reason
+            ? `<div style="background:#fffbeb;border-left:3px solid #d97706;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;">
+                <p style="margin:0;font-size:12px;font-weight:600;color:#92400e;">Required revisions from OSA-SACDEV:</p>
+                <p style="margin:6px 0 0;font-size:13px;color:#78350f;white-space:pre-wrap;">${reason}</p>
+               </div>`
+            : '';
+
+          const revisionHtml = `
+            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+              <div style="background:#1a2f5e;padding:18px 24px;border-radius:8px 8px 0 0;">
+                <h2 style="color:#fff;margin:0;font-size:18px;">Revision Required</h2>
+                <p style="color:#c9a84c;margin:4px 0 0;font-size:13px;">OSA-SACDEV Student Organization Management System</p>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+                <p style="color:#334155;margin-top:0;">Dear <strong>${orgName}</strong>,</p>
+                <p style="color:#334155;">Your organization's re-registration requirements for Academic Year 2026–2027 have been reviewed and require <strong style="color:#d97706;">revisions</strong> before they can be approved by OSA-SACDEV.</p>
+                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 18px;margin:18px 0;">
+                  <p style="margin:0;color:#d97706;font-weight:600;font-size:14px;">↩ Status: For Revision</p>
+                  <p style="margin:6px 0 0;color:#92400e;font-size:13px;">Organization: ${orgName}</p>
+                </div>
+                ${notesBlock}
+                <p style="color:#475569;font-size:13px;">Please address the required revisions and coordinate with OSA-SACDEV at your earliest convenience.</p>
+                <p style="color:#475569;font-size:13px;margin-bottom:0;">For inquiries, contact <a href="mailto:sacdev@xu.edu.ph" style="color:#1a2f5e;">sacdev@xu.edu.ph</a></p>
+              </div>
+              <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:12px;">OSA-SACDEV • Xavier University • Cagayan de Oro City</p>
+            </div>
+          `;
+
+          await mailer.sendMail({
+            from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
+            to:      toEmail,
+            subject: `[SACDEV SOMS] Revision Required — ${orgName}`,
+            html:    revisionHtml
+          });
+        }
+      } catch (mailErr) {
+        console.error('Revision email error:', mailErr.message);
+      }
+    }
+
+    // Send pending email notification (when admin resets status back to pending)
+    if (status === 'pending') {
+      try {
+        const subDoc = await db.collection('submissions').doc(id).get();
+        const sub    = subDoc.data() || {};
+        const toEmail = sub.orgEmail || '';
+        const orgName = sub.org || sub.orgName || 'Your Organization';
+        const prevStatus = sub.status || '';
+
+        // Only send if it was previously approved or rejected (not on initial submission)
+        if (toEmail && (prevStatus === 'approved' || prevStatus === 'rejected')) {
+          const pendingHtml = `
+            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+              <div style="background:#1a2f5e;padding:18px 24px;border-radius:8px 8px 0 0;">
+                <h2 style="color:#fff;margin:0;font-size:18px;">Submission Status Update</h2>
+                <p style="color:#c9a84c;margin:4px 0 0;font-size:13px;">OSA-SACDEV Student Organization Management System</p>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+                <p style="color:#334155;margin-top:0;">Dear <strong>${orgName}</strong>,</p>
+                <p style="color:#334155;">This is to inform you that your organization's re-registration submission for Academic Year 2026–2027 has been placed <strong style="color:#d97706;">back under review</strong> by OSA-SACDEV.</p>
+                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 18px;margin:18px 0;">
+                  <p style="margin:0;color:#d97706;font-weight:600;font-size:14px;">⏳ Status: Under Review</p>
+                  <p style="margin:6px 0 0;color:#92400e;font-size:13px;">Organization: ${orgName}</p>
+                </div>
+                <p style="color:#475569;font-size:13px;">No action is required from your end at this time. You will be notified once a final decision has been made. If you have any questions, please reach out to us.</p>
+                <p style="color:#475569;font-size:13px;margin-bottom:0;">For inquiries, contact <a href="mailto:sacdev@xu.edu.ph" style="color:#1a2f5e;">sacdev@xu.edu.ph</a></p>
+              </div>
+              <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:12px;">OSA-SACDEV • Xavier University • Cagayan de Oro City</p>
+            </div>
+          `;
+
+          await mailer.sendMail({
+            from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
+            to:      toEmail,
+            subject: `[SACDEV SOMS] Submission Under Review — ${orgName}`,
+            html:    pendingHtml
+          });
+        }
+      } catch (mailErr) {
+        console.error('Pending email error:', mailErr.message);
+      }
+    }
 
     res.json({ message: `Status updated to '${status}'`, id });
   } catch (err) {
@@ -184,14 +417,12 @@ app.patch('/submissions/:id/status', async (req, res) => {
 });
 
 
-// ── PUBLISH STRATEGIC PLAN ────────────────────────────────────────────────────
-// Sets published: true on a submission so its strategic plan becomes public.
 app.patch('/submissions/:id/publish', async (req, res) => {
   try {
     const { id }        = req.params;
-    const { published } = req.body;            // boolean — true to publish, false to unpublish
+    const { published } = req.body;            
 
-    const value = published !== false;          // default to true if omitted
+    const value = published !== false;          
 
     await db.collection('submissions').doc(id).update({
       published: value,
@@ -208,14 +439,10 @@ app.patch('/submissions/:id/publish', async (req, res) => {
 });
 
 
-// ── GET PUBLISHED PLANS FOR ONE ORG (public) ──────────────────────────────────
-// Returns the strategic plan tables for an org if published: true.
-// :orgName is URL-encoded.
 app.get('/org-plans/:orgName', async (req, res) => {
   try {
     const orgName = decodeURIComponent(req.params.orgName).trim();
 
-    // Query by the 'org' field first (legacy), fall back to 'orgName' field
     let snapshot = await db.collection('submissions')
       .where('org', '==', orgName)
       .where('published', '==', true)
@@ -223,7 +450,6 @@ app.get('/org-plans/:orgName', async (req, res) => {
       .get();
 
     if (snapshot.empty) {
-      // Try the newer 'orgName' field
       snapshot = await db.collection('submissions')
         .where('orgName', '==', orgName)
         .where('published', '==', true)
@@ -237,24 +463,18 @@ app.get('/org-plans/:orgName', async (req, res) => {
 
     const data = snapshot.docs[0].data();
 
-    // Extract the three strategic plan tables from saved form data
-    // They are stored as __table_bodyOrgDev, __table_bodyStudServ, __table_bodyCommInv
-    // inside the strategicPlan form data object or at the top level.
-    const sp = data.strategicPlan || data;   // support both flat and nested storage
 
-    // Keys were sanitized on write: __table_* becomes table_*
+    const sp = data.strategicPlan || data;   
+
     const orgDev   = sp['table_bodyOrgDev']   || data['table_bodyOrgDev']   || [];
     const studServ = sp['table_bodyStudServ']  || data['table_bodyStudServ'] || [];
     const commInv  = sp['table_bodyCommInv']   || data['table_bodyCommInv'] || [];
 
-    // Column order from addRow() in script.js:
-    // [0] Target Date, [1] Project Name, [2] Objectives, [3] Participants,
-    // [4] Partners, [5] Deliverables, [6] Project Head, [7] Budget
+
     const parseRows = (rows) => {
       if (!Array.isArray(rows)) return [];
       return rows
         .map(r => {
-          // Support both array format [date, name, ...] and object format {c0, c1, ...}
           const arr = Array.isArray(r) ? r : Object.keys(r).sort().map(k => r[k]);
           return {
             date:        arr[0] || '',
@@ -292,14 +512,12 @@ app.get('/org-plans/:orgName', async (req, res) => {
 });
 
 
-// ── GET SUBMISSION STATUS BY EMAIL (student-facing) ──────────────────────────
-// Returns the status of the most recent submission for a given email.
+
 app.get('/submission-status', async (req, res) => {
   try {
     const email = (req.query.email || '').trim();
     if (!email) return res.status(400).json({ error: 'email query parameter is required' });
 
-    // Search by the user email field first, then by orgEmail
     let snapshot = await db.collection('submissions')
       .where('email', '==', email)
       .orderBy('createdAt', 'desc')
@@ -336,16 +554,14 @@ app.get('/submission-status', async (req, res) => {
 });
 
 
-// ── OFFICER CONFLICT DETECTION ────────────────────────────────────────────────
-// Executive positions subject to conflict detection
+
 const EXEC_POSITIONS = ['president','vice president','secretary','treasurer','auditor'];
 
 function isExecPosition(position) {
   return EXEC_POSITIONS.some(ep => (position || '').toLowerCase().trim() === ep);
 }
 
-// Called automatically on /submit — scans all submissions for Student ID conflicts
-// and writes conflict records to the 'conflicts' collection.
+
 async function detectAndStoreConflicts(newSubmissionId, newSubmission) {
   try {
     const officers = newSubmission.officers || [];
@@ -353,7 +569,6 @@ async function detectAndStoreConflicts(newSubmissionId, newSubmission) {
 
     if (execOfficers.length === 0) return;
 
-    // Fetch all other approved/pending submissions
     const snapshot = await db.collection('submissions').get();
     const otherSubs = snapshot.docs
       .filter(doc => doc.id !== newSubmissionId)
@@ -369,13 +584,12 @@ async function detectAndStoreConflicts(newSubmissionId, newSubmission) {
         );
 
         for (const conflictingOfficer of conflicts) {
-          // Check if this conflict already exists
           const existing = await db.collection('conflicts')
             .where('studentId', '==', officer.studentId.trim())
             .where('submissionId1', 'in', [newSubmissionId, other.id])
             .get();
 
-          if (!existing.empty) continue; // already recorded
+          if (!existing.empty) continue;
 
           await db.collection('conflicts').add({
             studentId:    officer.studentId.trim(),
@@ -401,7 +615,6 @@ async function detectAndStoreConflicts(newSubmissionId, newSubmission) {
 }
 
 
-// ── GET ALL CONFLICTS (admin) ─────────────────────────────────────────────────
 app.get('/conflicts', async (req, res) => {
   try {
     const snapshot = await db.collection('conflicts').orderBy('createdAt', 'desc').get();
@@ -418,7 +631,6 @@ app.get('/conflicts', async (req, res) => {
 });
 
 
-// ── NOTIFY ORGANIZATIONS ABOUT CONFLICT (admin-triggered) ────────────────────
 app.post('/conflicts/:id/notify', async (req, res) => {
   try {
     const { id } = req.params;
@@ -471,6 +683,7 @@ app.post('/conflicts/:id/notify', async (req, res) => {
       return res.status(400).json({ error: 'No valid email addresses found for involved organizations.' });
     }
 
+    // Send email notification to both organizations involved in the conflict (subject to changes kay di mugana)
     await mailer.sendMail({
       from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
       to:      recipients.join(', '),
@@ -478,7 +691,6 @@ app.post('/conflicts/:id/notify', async (req, res) => {
       html:    bodyHtml
     });
 
-    // Mark conflict as notified
     await db.collection('conflicts').doc(id).update({
       notified:   true,
       notifiedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -492,7 +704,126 @@ app.post('/conflicts/:id/notify', async (req, res) => {
 });
 
 
-// ── FALLBACK SPA ROUTE ────────────────────────────────────────────────────────
+// ── INTERNAL NOTES ────────────────────────────────────────────────────────────
+app.post('/submissions/:id/notes', async (req, res) => {
+  try {
+    const { id }   = req.params;
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Note text is required.' });
+
+    const noteRef = await db.collection('submissions').doc(id)
+      .collection('notes').add({
+        text:      text.trim(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+    res.json({ message: 'Note saved.', id: noteRef.id });
+  } catch (err) {
+    console.error('Save note error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/submissions/:id/notes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const snapshot = await db.collection('submissions').doc(id)
+      .collection('notes').orderBy('createdAt', 'asc').get();
+
+    const notes = snapshot.docs.map(doc => ({
+      id:        doc.id,
+      text:      doc.data().text,
+      createdAt: doc.data().createdAt?.toDate?.()?.toLocaleString('en-PH') || '—'
+    }));
+
+    res.json(notes);
+  } catch (err) {
+    console.error('Fetch notes error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── RESOLVE CONFLICT ──────────────────────────────────────────────────────────
+app.post('/conflicts/:id/resolve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('conflicts').doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Conflict not found' });
+
+    await db.collection('conflicts').doc(id).update({
+      resolved:   true,
+      resolvedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ message: 'Conflict marked as resolved.', id });
+  } catch (err) {
+    console.error('Resolve conflict error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── RESCAN ALL CONFLICTS ───────────────────────────────────────────────────────
+app.post('/rescan-conflicts', async (req, res) => {
+  try {
+    const snapshot = await db.collection('submissions').get();
+    const subs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    let newCount = 0;
+
+    for (let i = 0; i < subs.length; i++) {
+      const a = subs[i];
+      const execA = (a.officers || []).filter(o => isExecPosition(o.position) && o.studentId);
+      if (!execA.length) continue;
+
+      for (let j = i + 1; j < subs.length; j++) {
+        const b = subs[j];
+        const execB = (b.officers || []).filter(o => isExecPosition(o.position) && o.studentId);
+        if (!execB.length) continue;
+
+        for (const oa of execA) {
+          for (const ob of execB) {
+            if (oa.studentId.trim() !== ob.studentId.trim()) continue;
+
+            // Check if this conflict already exists
+            const existing = await db.collection('conflicts')
+              .where('studentId', '==', oa.studentId.trim())
+              .where('submissionId1', 'in', [a.id, b.id])
+              .get();
+
+            if (!existing.empty) continue;
+
+            await db.collection('conflicts').add({
+              studentId:     oa.studentId.trim(),
+              studentName:   oa.name || '',
+              submissionId1: a.id,
+              orgName1:      a.org || a.orgName || '—',
+              orgEmail1:     a.orgEmail || '',
+              position1:     oa.position,
+              submissionId2: b.id,
+              orgName2:      b.org || b.orgName || '—',
+              orgEmail2:     b.orgEmail || '',
+              position2:     ob.position,
+              notified:      false,
+              resolved:      false,
+              resolvedAt:    null,
+              createdAt:     admin.firestore.FieldValue.serverTimestamp()
+            });
+            newCount++;
+          }
+        }
+      }
+    }
+
+    res.json({ message: `Rescan complete. ${newCount} new conflict(s) found.`, newCount });
+  } catch (err) {
+    console.error('Rescan conflicts error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });

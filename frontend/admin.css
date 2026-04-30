@@ -1113,79 +1113,94 @@ body {
     border-color: #fca5a5;
 }
 
-/* ── INLINE STATUS BUTTONS in table ─────────────── */
-.status-actions-cell {
+/* ── FILTER BAR ──────────────────────────────────────────────────────────── */
+.filter-bar {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: nowrap;
+    padding: 12px 20px 14px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
 }
 
-.inline-status-btns {
+.filter-bar .search-input {
+    flex: 1;
+    min-width: 180px;
+    max-width: 260px;
+}
+
+.filter-status-btns {
     display: flex;
     gap: 4px;
-    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
-.btn-inline-approve,
-.btn-inline-pending,
-.btn-inline-reject {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    border: 1.5px solid transparent;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s;
+.filter-btn {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
     background: var(--off-white);
     color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
     font-family: inherit;
-}
-
-.btn-inline-approve:hover,
-.btn-inline-approve.active {
-    background: var(--green-bg);
-    color: var(--green);
-    border-color: var(--green);
-}
-
-.btn-inline-pending:hover,
-.btn-inline-pending.active {
-    background: var(--orange-bg);
-    color: var(--orange);
-    border-color: var(--orange);
-}
-
-.btn-inline-reject:hover,
-.btn-inline-reject.active {
-    background: var(--red-bg);
-    color: var(--red);
-    border-color: var(--red);
-}
-
-/* Inline unpublish button — shown only when plans are published */
-.btn-inline-unpublish {
-    padding: 3px 9px;
-    border-radius: 6px;
-    border: 1.5px solid #fca5a5;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 700;
     cursor: pointer;
     transition: all 0.15s;
-    background: var(--red-bg);
-    color: var(--red);
     white-space: nowrap;
-    flex-shrink: 0;
 }
 
-.btn-inline-unpublish:hover {
-    background: var(--red);
+.filter-btn:hover {
+    border-color: var(--navy);
+    color: var(--navy);
+}
+
+.filter-btn.active {
+    background: var(--navy);
     color: #fff;
+    border-color: var(--navy);
+}
+
+.cluster-filter-select {
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--off-white);
+    color: var(--text-body);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    max-width: 220px;
+}
+
+.cluster-filter-select:focus {
+    outline: none;
+    border-color: var(--navy);
+}
+
+.filter-clear-btn {
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.filter-clear-btn:hover {
+    background: var(--red-bg);
+    color: var(--red);
     border-color: var(--red);
+}
+
+/* ── INLINE STATUS BUTTONS in table ─────────────── */
+.status-actions-cell {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: 8px;
 }
 
 /* ── Officer Conflicts ──────────────────────────────────────────────────── */
@@ -1278,6 +1293,21 @@ body {
     cursor: not-allowed;
 }
 
+/* "Duplicate" badge in main submissions table */
+.table-duplicate-badge {
+    display: inline-block;
+    background: #fefce8;
+    color: #854d0e;
+    border: 1px solid #fde047;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    margin-left: 4px;
+    white-space: nowrap;
+}
+
+
 /* "Conflict Found" badge in main submissions table */
 .table-conflict-badge {
     display: inline-block;
@@ -1304,4 +1334,142 @@ body {
     border: 1px solid #fecaca;
     margin-right: 6px;
     white-space: nowrap;
+}
+
+/* ── EXPORT BUTTONS in report panel ─────────────────────────────────────── */
+.report-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.report-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-export-csv,
+.btn-export-pdf {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.btn-export-csv {
+    background: var(--green-bg);
+    color: var(--green);
+    border-color: var(--green);
+}
+
+.btn-export-csv:hover {
+    background: var(--green);
+    color: #fff;
+}
+
+.btn-export-pdf {
+    background: var(--red-bg);
+    color: var(--red);
+    border-color: var(--red);
+}
+
+.btn-export-pdf:hover {
+    background: var(--red);
+    color: #fff;
+}
+
+/* ── CONFLICT ROW STATES ─────────────────────────────────────────────────── */
+.conflict-row--notified {
+    opacity: 0.6;
+    background: #f8fafc !important;
+}
+.conflict-row--notified:hover {
+    opacity: 0.75;
+    background: #f1f5f9 !important;
+}
+
+.conflict-row--resolved td {
+    color: #94a3b8;
+    text-decoration: line-through;
+    font-style: italic;
+}
+.conflict-row--resolved .conflict-id-chip,
+.conflict-row--resolved .conflict-pos-badge {
+    opacity: 0.45;
+}
+
+/* ── RESOLVE BUTTON ──────────────────────────────────────────────────────── */
+.btn-resolve-conflict {
+    background: transparent;
+    color: #64748b;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+}
+.btn-resolve-conflict:hover {
+    background: #f0fdf4;
+    color: #16a34a;
+    border-color: #16a34a;
+}
+.btn-resolve-conflict:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── RESCAN BUTTON ───────────────────────────────────────────────────────── */
+.btn-rescan {
+    background: transparent;
+    color: var(--navy);
+    border: 1.5px solid var(--navy);
+    border-radius: 8px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.btn-rescan:hover {
+    background: var(--navy);
+    color: #fff;
+}
+.btn-rescan:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ── RESOLVED CONFLICTS SECTION ──────────────────────────────────────────── */
+.resolved-conflicts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    border-top: 1px solid var(--border);
+    user-select: none;
+    transition: background 0.15s;
+}
+.resolved-conflicts-header:hover {
+    background: var(--off-white);
+}
+.resolved-chevron {
+    font-size: 11px;
+    color: #94a3b8;
 }

@@ -156,6 +156,7 @@ async function initAdminDashboard() {
     renderStats();
     renderTable(allSubmissions);
     renderClusterAccordion();
+    populateClusterFilter();
     await loadAndRenderConflicts();
 }
 
@@ -199,40 +200,43 @@ function renderTable(submissions) {
     }
     noData.classList.add('hidden');
 
+    // Build a map of orgName → list of submission IDs to detect duplicates
+    const orgNameMap = {};
+    submissions.forEach(s => {
+        const key = (s.org || s.orgName || '').trim().toLowerCase();
+        if (!key) return;
+        if (!orgNameMap[key]) orgNameMap[key] = [];
+        orgNameMap[key].push(s.id);
+    });
+
     submissions.forEach((s, i) => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-search',
             `${s.org||''} ${s.orgName||''} ${s.president||''} ${s.orgEmail||''} ${s.email||''}`.toLowerCase()
         );
         tr.setAttribute('data-id', s.id);
+        tr.setAttribute('data-status',  s.status || 'pending');
+        tr.setAttribute('data-cluster', (s.cluster || '').trim());
 
         // Check if this org has conflicts
-        const hasConflict = allConflicts.some(c => c.submissionId1 === s.id || c.submissionId2 === s.id);
+        const hasConflict  = allConflicts.some(c => c.submissionId1 === s.id || c.submissionId2 === s.id);
+        const orgKey       = (s.org || s.orgName || '').trim().toLowerCase();
+        const isDuplicate  = orgNameMap[orgKey] && orgNameMap[orgKey].length > 1;
 
-        tr.addEventListener('click', (e) => {
-            if (e.target.closest('button')) return;
-            openDetailModal(s);
-        });
+        tr.addEventListener('click', () => openDetailModal(s));
 
         tr.innerHTML = `
             <td>${i + 1}</td>
             <td class="org-name-cell">
                 ${s.org || s.orgName || '—'}
                 ${hasConflict ? `<span class="table-conflict-badge">⚠ Conflict Found</span>` : ''}
+                ${isDuplicate ? `<span class="table-duplicate-badge">⚠ Duplicate</span>` : ''}
             </td>
             <td>${s.president || '—'}</td>
             <td class="email-cell">${s.orgEmail || s.email || '—'}</td>
             <td class="status-actions-cell">
                 ${statusBadge(s.status)}
-                <div class="inline-status-btns">
-                    <button class="btn-inline-approve ${s.status === 'approved' ? 'active' : ''}"
-                        onclick="updateStatusAndRefresh('${s.id}', 'approved')" title="Approve">✓</button>
-                    <button class="btn-inline-pending ${s.status === 'pending' || !s.status ? 'active' : ''}"
-                        onclick="updateStatusAndRefresh('${s.id}', 'pending')" title="Set Pending">⏳</button>
-                    <button class="btn-inline-reject ${s.status === 'rejected' ? 'active' : ''}"
-                        onclick="updateStatusAndRefresh('${s.id}', 'rejected')" title="Reject">✕</button>
-                </div>
-                ${s.published ? `<button class="btn-inline-unpublish" onclick="event.stopPropagation(); togglePublish('${s.id}', false)" title="Unpublish Plans">🔴 Unpublish</button>` : ''}
+                ${s.published ? `<span class="publish-status-badge published">🟢 Published</span>` : `<span class="publish-status-badge unpublished">⚪ Unpublished</span>`}
             </td>
         `;
         tbody.appendChild(tr);
@@ -241,15 +245,63 @@ function renderTable(submissions) {
 
 function statusBadge(status) {
     const s = status || 'pending';
-    const labels = { approved: '✓ Approved', pending: '⏳ Pending', rejected: '✕ Rejected' };
+    const labels = { approved: '✓ Approved', pending: '⏳ Pending', rejected: '✕ Rejected', revision: '↩ For Revision' };
     return `<span class="status-badge ${s}">${labels[s] || s}</span>`;
 }
 
+let _activeStatusFilter = 'all';
+
+function setStatusFilter(btn) {
+    _activeStatusFilter = btn.getAttribute('data-status');
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterAdminTable();
+}
+
 function filterAdminTable() {
-    const q = document.getElementById('adminSearch').value.toLowerCase().trim();
+    const q       = document.getElementById('adminSearch').value.toLowerCase().trim();
+    const cluster = document.getElementById('clusterFilter').value;
+    const noData  = document.getElementById('adminNoData');
+    let visible   = 0;
+
     document.querySelectorAll('#adminSubmissionsBody tr').forEach(tr => {
-        const text = tr.getAttribute('data-search') || '';
-        tr.style.display = !q || text.includes(q) ? '' : 'none';
+        const text        = tr.getAttribute('data-search') || '';
+        const rowStatus   = tr.getAttribute('data-status')  || 'pending';
+        const rowCluster  = tr.getAttribute('data-cluster') || '';
+
+        const matchSearch  = !q       || text.includes(q);
+        const matchStatus  = _activeStatusFilter === 'all' || rowStatus === _activeStatusFilter;
+        const matchCluster = !cluster || rowCluster === cluster;
+
+        const show = matchSearch && matchStatus && matchCluster;
+        tr.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    noData.classList.toggle('hidden', visible > 0);
+}
+
+function clearFilters() {
+    document.getElementById('adminSearch').value    = '';
+    document.getElementById('clusterFilter').value  = '';
+    _activeStatusFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-status') === 'all');
+    });
+    filterAdminTable();
+}
+
+function populateClusterFilter() {
+    const select = document.getElementById('clusterFilter');
+    const current = select.value;
+    // Keep the first "All Clusters" option, rebuild the rest
+    select.innerHTML = '<option value="">All Clusters</option>';
+    Object.keys(CLUSTERS).sort().forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === current) opt.selected = true;
+        select.appendChild(opt);
     });
 }
 
@@ -337,50 +389,95 @@ async function loadAndRenderConflicts() {
 
     if (loadingEl) loadingEl.style.display = 'none';
 
-    // Update stat card
-    animateCount('statConflicts', allConflicts.length);
+    // Split into active (unresolved) and resolved
+    const activeConflicts   = allConflicts.filter(c => !c.resolved);
+    const resolvedConflicts = allConflicts.filter(c => c.resolved);
+
+    // Update stat card — only count active conflicts
+    animateCount('statConflicts', activeConflicts.length);
     const conflictCard = document.getElementById('conflictStatCard');
-    if (conflictCard) conflictCard.classList.toggle('has-conflicts', allConflicts.length > 0);
+    if (conflictCard) conflictCard.classList.toggle('has-conflicts', activeConflicts.length > 0);
 
-    if (allConflicts.length === 0) {
-        if (noneEl) noneEl.style.display = 'block';
-        if (badge)  badge.style.display  = 'none';
-        return;
-    }
-
-    // Update badge
+    // Update badge — only active
     if (badge) {
-        badge.textContent = allConflicts.length + ' conflict' + (allConflicts.length > 1 ? 's' : '');
-        badge.style.display = 'inline-block';
+        if (activeConflicts.length > 0) {
+            badge.textContent = activeConflicts.length + ' conflict' + (activeConflicts.length > 1 ? 's' : '');
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
     }
 
-    tbody.innerHTML = '';
-    allConflicts.forEach((c, i) => {
-        const notified = c.notified === true;
-        const tr = document.createElement('tr');
-        tr.className = 'conflict-row';
-        tr.innerHTML = `
-            <td>${i + 1}</td>
-            <td><span class="conflict-id-chip">${c.studentId || '—'}</span></td>
-            <td><strong>${c.studentName || '—'}</strong></td>
-            <td>${c.orgName1 || '—'}</td>
-            <td><span class="conflict-pos-badge">${c.position1 || '—'}</span></td>
-            <td>${c.orgName2 || '—'}</td>
-            <td><span class="conflict-pos-badge">${c.position2 || '—'}</span></td>
-            <td style="white-space:nowrap;font-size:12px;color:#64748b;">${c.createdAt || '—'}</td>
-            <td>
-                ${notified
-                    ? `<span class="conflict-notified-badge">✓ Notified</span>`
-                    : `<button class="btn-notify-conflict" onclick="notifyConflict('${c.id}', this)">
-                           📧 Notify Orgs
-                       </button>`
-                }
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
+    if (activeConflicts.length === 0) {
+        if (noneEl) noneEl.style.display = 'block';
+    } else {
+        // Render active conflicts table
+        tbody.innerHTML = '';
+        activeConflicts.forEach((c, i) => {
+            const notified = c.notified === true;
+            const tr = document.createElement('tr');
+            tr.className = 'conflict-row' + (notified ? ' conflict-row--notified' : '');
+            tr.setAttribute('data-conflict-id', c.id);
+            tr.innerHTML = `
+                <td>${i + 1}</td>
+                <td><span class="conflict-id-chip">${c.studentId || '—'}</span></td>
+                <td><strong>${c.studentName || '—'}</strong></td>
+                <td>${c.orgName1 || '—'}</td>
+                <td><span class="conflict-pos-badge">${c.position1 || '—'}</span></td>
+                <td>${c.orgName2 || '—'}</td>
+                <td><span class="conflict-pos-badge">${c.position2 || '—'}</span></td>
+                <td style="white-space:nowrap;font-size:12px;color:#64748b;">${c.createdAt || '—'}</td>
+                <td>
+                    ${notified
+                        ? `<span class="conflict-notified-badge">Notified</span>`
+                        : `<button class="btn-notify-conflict" onclick="notifyConflict('${c.id}', this)">Notify Orgs</button>`
+                    }
+                </td>
+                <td>
+                    <button class="btn-resolve-conflict" onclick="resolveConflict('${c.id}', this)">Mark Resolved</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        if (tableEl) tableEl.style.display = '';
+    }
 
-    if (tableEl) tableEl.style.display = '';
+    // Render resolved conflicts section
+    const resolvedSection = document.getElementById('resolvedConflictsSection');
+    const resolvedTbody   = document.getElementById('resolvedConflictsTableBody');
+    const resolvedLabel   = document.getElementById('resolvedConflictsLabel');
+
+    if (resolvedConflicts.length > 0) {
+        resolvedSection.style.display = '';
+        resolvedLabel.textContent = `Resolved Conflicts (${resolvedConflicts.length})`;
+        resolvedTbody.innerHTML = '';
+        resolvedConflicts.forEach((c, i) => {
+            const tr = document.createElement('tr');
+            tr.className = 'conflict-row conflict-row--resolved';
+            tr.innerHTML = `
+                <td>${i + 1}</td>
+                <td><span class="conflict-id-chip">${c.studentId || '—'}</span></td>
+                <td>${c.studentName || '—'}</td>
+                <td>${c.orgName1 || '—'}</td>
+                <td><span class="conflict-pos-badge">${c.position1 || '—'}</span></td>
+                <td>${c.orgName2 || '—'}</td>
+                <td><span class="conflict-pos-badge">${c.position2 || '—'}</span></td>
+                <td style="white-space:nowrap;font-size:12px;color:#94a3b8;">${c.createdAt || '—'}</td>
+                <td style="white-space:nowrap;font-size:12px;color:#94a3b8;">${c.resolvedAt || '—'}</td>
+            `;
+            resolvedTbody.appendChild(tr);
+        });
+    } else {
+        resolvedSection.style.display = 'none';
+    }
+}
+
+function toggleResolvedSection() {
+    const body    = document.getElementById('resolvedConflictsBody');
+    const chevron = document.getElementById('resolvedChevron');
+    const isOpen  = body.style.display !== 'none';
+    body.style.display    = isOpen ? 'none' : '';
+    chevron.textContent   = isOpen ? '▶' : '▼';
 }
 
 async function notifyConflict(conflictId, btnEl) {
@@ -392,24 +489,66 @@ async function notifyConflict(conflictId, btnEl) {
     }
 
     try {
-        const res = await fetch(`/conflicts/${conflictId}/notify`, { method: 'POST' });
+        const res  = await fetch(`/conflicts/${conflictId}/notify`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Server error');
 
-        // Replace button with notified badge
+        // Replace button with notified badge and fade the row
         if (btnEl) {
             const span = document.createElement('span');
-            span.className = 'conflict-notified-badge';
-            span.textContent = '✓ Notified';
+            span.className   = 'conflict-notified-badge';
+            span.textContent = 'Notified';
             btnEl.replaceWith(span);
         }
+        // Fade the row
+        const row = document.querySelector(`tr[data-conflict-id="${conflictId}"]`);
+        if (row) row.classList.add('conflict-row--notified');
+
         alert('Email notifications sent successfully to the involved organizations.');
     } catch (e) {
         alert('Failed to send notification: ' + e.message);
         if (btnEl) {
             btnEl.disabled = false;
-            btnEl.textContent = '📧 Notify Orgs';
+            btnEl.textContent = 'Notify Orgs';
         }
+    }
+}
+
+async function resolveConflict(conflictId, btnEl) {
+    if (!confirm('Mark this conflict as resolved? It will be moved to the Resolved Conflicts section.')) return;
+
+    if (btnEl) {
+        btnEl.disabled    = true;
+        btnEl.textContent = 'Resolving…';
+    }
+
+    try {
+        const res = await fetch(`/conflicts/${conflictId}/resolve`, { method: 'POST' });
+        if (!res.ok) throw new Error((await res.json()).error || 'Server error');
+        await loadAndRenderConflicts();
+    } catch (e) {
+        alert('Failed to resolve conflict: ' + e.message);
+        if (btnEl) {
+            btnEl.disabled    = false;
+            btnEl.textContent = 'Mark Resolved';
+        }
+    }
+}
+
+async function rescanConflicts() {
+    const btn = document.getElementById('rescanBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+
+    try {
+        const res  = await fetch('/rescan-conflicts', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server error');
+        await loadAndRenderConflicts();
+        alert(data.message);
+    } catch (e) {
+        alert('Rescan failed: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Re-scan All'; }
     }
 }
 
@@ -472,6 +611,27 @@ function openDetailModal(submission) {
         s.constitutionFileName !== 'Click to upload constitution (PDF)' &&
         s.constitutionFileName.trim() !== '';
 
+    // Find duplicate submissions (same org name, different ID)
+    const orgKey    = (s.org || s.orgName || '').trim().toLowerCase();
+    const duplicates = allSubmissions.filter(x =>
+        x.id !== s.id &&
+        (x.org || x.orgName || '').trim().toLowerCase() === orgKey
+    );
+    const duplicateBanner = duplicates.length > 0 ? `
+        <div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:700;color:#854d0e;margin-bottom:6px;">⚠ Duplicate Submission Detected</div>
+            <div style="font-size:12px;color:#713f12;">This organization has ${duplicates.length} other submission${duplicates.length > 1 ? 's' : ''}:</div>
+            ${duplicates.map(d => `
+                <div style="margin-top:6px;font-size:12px;color:#713f12;display:flex;gap:8px;align-items:center;">
+                    <span>${statusBadge(d.status)}</span>
+                    <span>Submitted: ${d.createdAt || d.submittedAt || '—'}</span>
+                    <a href="#" onclick="event.preventDefault(); closeDetailModal(); setTimeout(() => openDetailModal(${JSON.stringify(d).replace(/"/g,'&quot;')}), 50);"
+                       style="color:#1a2f5e;font-weight:600;text-decoration:underline;">View</a>
+                </div>
+            `).join('')}
+        </div>
+    ` : '';
+
     content.innerHTML = `
         <div class="modal-header">
             <div class="modal-header-badge">Org Re-Registration 2026–2027</div>
@@ -483,6 +643,7 @@ function openDetailModal(submission) {
             </div>
         </div>
         <div class="modal-body">
+            ${duplicateBanner}
 
             <!-- ── Organization Information ──────────────────── -->
             <div class="modal-section">
@@ -700,11 +861,24 @@ function openDetailModal(submission) {
                 <span class="modal-status-label">Current Status:</span>
                 ${statusBadge(s.status)}
                 <div class="modal-action-btns">
-                    <button class="btn-approve" onclick="updateStatusAndRefresh('${s.id}', 'approved')">✓ Approve</button>
-                    <button class="btn-pending" onclick="updateStatusAndRefresh('${s.id}', 'pending')">⏳ Pending</button>
-                    <button class="btn-reject"  onclick="updateStatusAndRefresh('${s.id}', 'rejected')">✕ Reject</button>
+                    <button class="btn-approve"   onclick="updateStatusAndRefresh('${s.id}', 'approved')">✓ Approve</button>
+                    <button class="btn-pending"   onclick="updateStatusAndRefresh('${s.id}', 'pending')">⏳ Pending</button>
+                    <button class="btn-revision"  onclick="openRevisionModal('${s.id}', '${orgName.replace(/'/g, "\\'")}')">↩ Request Revision</button>
+                    <button class="btn-reject"    onclick="openRejectModal('${s.id}', '${orgName.replace(/'/g, "\\'")}')">✕ Reject</button>
                 </div>
             </div>
+            <!-- ── Internal Notes ─────────────────────────────── -->
+            <div class="modal-section" id="notesSection-${s.id}">
+                <div class="modal-section-title">Internal Notes <span style="font-size:11px;color:#94a3b8;font-weight:400;">(admin only — not sent to org)</span></div>
+                <div id="notesList-${s.id}" class="notes-list">
+                    <div class="notes-loading">Loading notes…</div>
+                </div>
+                <div class="notes-input-row">
+                    <textarea id="noteInput-${s.id}" class="notes-textarea" placeholder="Add a note (e.g. Follow up with president, Waiting for moderator signature…)" rows="2"></textarea>
+                    <button class="btn-save-note" onclick="saveNote('${s.id}')">Save Note</button>
+                </div>
+            </div>
+
             <div class="modal-publish-row">
                 <div class="modal-publish-info">
                     <span class="modal-publish-label">Strategic Plan:</span>
@@ -725,6 +899,7 @@ function openDetailModal(submission) {
 
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    loadNotes(s.id);
 }
 
 function closeModal(e) {
@@ -736,12 +911,12 @@ function closeDetailModal() {
     document.body.style.overflow = '';
 }
 
-async function updateStatusAndRefresh(id, status) {
+async function updateStatusAndRefresh(id, status, reason) {
     try {
         const res = await fetch(`/submissions/${id}/status`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
+            body: JSON.stringify({ status, reason: reason || '' })
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Server error');
         closeDetailModal();
@@ -932,6 +1107,114 @@ document.addEventListener('keydown', e => {
 });
 
 
+// ════════════════════════════════════════════════
+// REJECT / REVISION MODALS
+// ════════════════════════════════════════════════
+
+function openRejectModal(id, orgName) {
+    document.getElementById('rejectModalOrgName').textContent = orgName || 'this organization';
+    document.getElementById('rejectReasonInput').value = '';
+    document.getElementById('rejectModalError').style.display = 'none';
+    document.getElementById('rejectSubmissionId').value = id;
+    document.getElementById('rejectModal').classList.remove('hidden');
+}
+
+function closeRejectModal() {
+    document.getElementById('rejectModal').classList.add('hidden');
+}
+
+async function confirmReject() {
+    const id     = document.getElementById('rejectSubmissionId').value;
+    const reason = document.getElementById('rejectReasonInput').value.trim();
+    const errEl  = document.getElementById('rejectModalError');
+
+    if (!reason) {
+        errEl.textContent = 'Please provide a reason for rejection.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    errEl.style.display = 'none';
+    closeRejectModal();
+    await updateStatusAndRefresh(id, 'rejected', reason);
+}
+
+function openRevisionModal(id, orgName) {
+    document.getElementById('revisionModalOrgName').textContent = orgName || 'this organization';
+    document.getElementById('revisionNotesInput').value = '';
+    document.getElementById('revisionModalError').style.display = 'none';
+    document.getElementById('revisionSubmissionId').value = id;
+    document.getElementById('revisionModal').classList.remove('hidden');
+}
+
+function closeRevisionModal() {
+    document.getElementById('revisionModal').classList.add('hidden');
+}
+
+async function confirmRevision() {
+    const id    = document.getElementById('revisionSubmissionId').value;
+    const notes = document.getElementById('revisionNotesInput').value.trim();
+    const errEl = document.getElementById('revisionModalError');
+
+    if (!notes) {
+        errEl.textContent = 'Please specify what revisions are needed.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    errEl.style.display = 'none';
+    closeRevisionModal();
+    await updateStatusAndRefresh(id, 'revision', notes);
+}
+
+// ════════════════════════════════════════════════
+// INTERNAL NOTES
+// ════════════════════════════════════════════════
+
+async function loadNotes(submissionId) {
+    const listEl = document.getElementById(`notesList-${submissionId}`);
+    if (!listEl) return;
+
+    try {
+        const res   = await fetch(`/submissions/${submissionId}/notes`);
+        const notes = await res.json();
+
+        if (!notes.length) {
+            listEl.innerHTML = '<div class="notes-empty">No notes yet.</div>';
+            return;
+        }
+
+        listEl.innerHTML = notes.map(n => `
+            <div class="note-item">
+                <div class="note-text">${n.text.replace(/</g, '&lt;')}</div>
+                <div class="note-meta">${n.createdAt}</div>
+            </div>
+        `).join('');
+    } catch (e) {
+        listEl.innerHTML = '<div class="notes-empty">Could not load notes.</div>';
+    }
+}
+
+async function saveNote(submissionId) {
+    const input = document.getElementById(`noteInput-${submissionId}`);
+    const text  = input ? input.value.trim() : '';
+    if (!text) { alert('Please type a note before saving.'); return; }
+
+    try {
+        const res = await fetch(`/submissions/${submissionId}/notes`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ text })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Server error');
+        input.value = '';
+        await loadNotes(submissionId);
+    } catch (e) {
+        alert('Failed to save note: ' + e.message);
+    }
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
     try {
         if (sessionStorage.getItem('sacdev_adminLoggedIn') === '1') {
@@ -940,3 +1223,112 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch(e) {}
 });
+
+// ════════════════════════════════════════════════
+// EXPORT — CSV
+// ════════════════════════════════════════════════
+function exportCSV() {
+    if (!allSubmissions.length) { alert('No submissions to export.'); return; }
+
+    const headers = [
+        'Organization', 'Council / Type', 'Cluster', 'President',
+        'President Email', 'Org Email', 'Moderator', 'Status',
+        'Published', 'Submitted At'
+    ];
+
+    const escape = (v) => {
+        const s = (v || '—').toString().replace(/"/g, '""');
+        return `"${s}"`;
+    };
+
+    const rows = allSubmissions.map(s => [
+        escape(s.org || s.orgName),
+        escape(s.council || s.orgType),
+        escape(s.cluster),
+        escape(s.presFullName || s.president),
+        escape(s.presEmail || s.presidentEmail),
+        escape(s.orgEmail),
+        escape(s.modFullName || s.moderatorName),
+        escape(s.status || 'pending'),
+        escape(s.published ? 'Yes' : 'No'),
+        escape(s.createdAt || s.submittedAt)
+    ].join(','));
+
+    const csv  = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `SACDEV_Submissions_${new Date().toLocaleDateString('en-PH').replace(/\//g,'-')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ════════════════════════════════════════════════
+// EXPORT — PDF
+// ════════════════════════════════════════════════
+function exportPDF() {
+    if (!allSubmissions.length) { alert('No submissions to export.'); return; }
+
+    const { jsPDF } = window.jspdf;
+    if (!jsPDF) { alert('PDF library not loaded. Please check your connection and try again.'); return; }
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    doc.setFillColor(26, 47, 94);
+    doc.rect(0, 0, 297, 18, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OSA-SACDEV — Student Organization Re-Registration Report', 14, 12);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Generated: ${new Date().toLocaleString('en-PH')}`, 14, 22);
+    doc.text(`Total submissions: ${allSubmissions.length}`, 14, 27);
+
+    const approved = allSubmissions.filter(s => s.status === 'approved').length;
+    const pending  = allSubmissions.filter(s => s.status === 'pending' || !s.status).length;
+    const rejected = allSubmissions.filter(s => s.status === 'rejected').length;
+    const revision = allSubmissions.filter(s => s.status === 'revision').length;
+    doc.text(`Approved: ${approved}   Pending: ${pending}   Rejected: ${rejected}   For Revision: ${revision}`, 14, 32);
+
+    doc.autoTable({
+        startY: 37,
+        head: [['#', 'Organization', 'Council / Type', 'Cluster', 'President', 'Org Email', 'Status', 'Published', 'Submitted']],
+        body: allSubmissions.map((s, i) => [
+            i + 1,
+            s.org || s.orgName || '—',
+            s.council || s.orgType || '—',
+            s.cluster || '—',
+            s.presFullName || s.president || '—',
+            s.orgEmail || '—',
+            (s.status || 'pending').toUpperCase(),
+            s.published ? 'Yes' : 'No',
+            s.createdAt || s.submittedAt || '—'
+        ]),
+        styles:             { fontSize: 7, cellPadding: 2 },
+        headStyles:         { fillColor: [26, 47, 94], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles:       { 0: { cellWidth: 8 }, 1: { cellWidth: 52 }, 6: { cellWidth: 22 }, 7: { cellWidth: 16 } },
+        margin:             { left: 14, right: 14 }
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text(
+            `OSA-SACDEV SOMS  •  Xavier University  •  Page ${i} of ${pageCount}`,
+            doc.internal.pageSize.getWidth() / 2,
+            doc.internal.pageSize.getHeight() - 5,
+            { align: 'center' }
+        );
+    }
+
+    doc.save(`SACDEV_Submissions_${new Date().toLocaleDateString('en-PH').replace(/\//g,'-')}.pdf`);
+}
