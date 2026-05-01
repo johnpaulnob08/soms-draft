@@ -61,6 +61,34 @@
 .notes-textarea:focus { outline: none; border-color: #94a3b8; }
 .btn-save-note { background: #1a2f5e; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; font-weight: 500; }
 .btn-save-note:hover { background: #16294f; }
+
+/* ── Login divider ── */
+.login-divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 18px 0; color: #94a3b8; font-size: 12px;
+}
+.login-divider::before,
+.login-divider::after {
+    content: ''; flex: 1; height: 1px; background: #e2e8f0;
+}
+
+/* ── Google sign-in button ── */
+.google-signin-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 11px 16px; border-radius: 8px;
+    border: 1.5px solid #e2e8f0; background: #fff;
+    font-size: 14px; font-weight: 500; color: #334155;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s;
+    font-family: inherit; box-sizing: border-box;
+}
+.google-signin-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+.google-signin-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.google-signin-btn img { width: 18px; height: 18px; }
+
+/* ── Staff access note at bottom ── */
+.admin-login-note {
+    font-size: 12px; color: #94a3b8; text-align: center; margin-top: 18px;
+}
 </style>
 </head>
 <body>
@@ -72,20 +100,28 @@
         </div>
         <div class="login-badge">Admin Panel</div>
         <h1 class="login-title">Admin Login</h1>
-        <p class="login-sub">OSA-SACDEV Staff Access Only</p>
 
         <div class="login-form">
             <div class="input-group">
-                <label>Admin Email</label>
-                <input type="email" id="adminEmail" placeholder="Enter admin email" autocomplete="username">
+                <label>Email</label>
+                <input type="email" id="adminEmail" placeholder="Enter your email" autocomplete="username">
             </div>
             <div class="input-group">
                 <label>Password</label>
-                <input type="password" id="adminPassword" placeholder="Enter password" autocomplete="current-password"
+                <input type="password" id="adminPassword" placeholder="Enter your password" autocomplete="current-password"
                        onkeydown="if(event.key==='Enter') handleAdminLogin()">
             </div>
             <div id="adminLoginError" class="login-error hidden"></div>
-            <button class="login-btn" onclick="handleAdminLogin()">Log In →</button>
+            <button class="login-btn" id="adminLoginBtn" onclick="handleAdminLogin()">Log In →</button>
+
+            <div class="login-divider">or</div>
+
+            <button class="google-signin-btn" id="adminGoogleBtn" onclick="handleAdminGoogleLogin()">
+                <img src="google.svg" alt="Google">
+                <span id="adminGoogleBtnText">Continue with Google (@xu.edu.ph)</span>
+            </button>
+
+            <p class="admin-login-note">OSA-SACDEV Staff Access Only</p>
         </div>
     </div>
 </div>

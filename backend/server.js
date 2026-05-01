@@ -23,7 +23,26 @@ try {
 }
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: function(origin, callback) {
+    const allowed = [
+      process.env.ALLOWED_ORIGIN,
+      'http://localhost',
+      'http://localhost:5000',
+      'http://localhost:3000'
+    ].filter(Boolean);
+
+    // Allow requests with no origin (server-to-server, Postman, curl)
+    if (!origin) return callback(null, true);
+
+    if (allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 
 const serviceAccount = require('./serviceAccountKey.json');
@@ -37,6 +56,41 @@ process.env.FIRESTORE_PREFER_REST = '1';
 
 const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
+
+
+// ── AUTH MIDDLEWARE ───────────────────────────────────────────────────────────
+// Only @xu.edu.ph Google accounts are allowed to access admin endpoints.
+async function requireAdmin(req, res, next) {
+  try {
+    const token = (req.headers.authorization || '').replace('Bearer ', '').trim();
+    if (!token) return res.status(401).json({ error: 'No token provided.' });
+
+    const decoded = await admin.auth().verifyIdToken(token);
+
+    if (!decoded.email || !decoded.email.endsWith('@xu.edu.ph')) {
+      return res.status(403).json({ error: 'Access denied. XU staff accounts only.' });
+    }
+
+    req.adminEmail = decoded.email;
+    next();
+  } catch (err) {
+    console.error('Auth error:', err.message);
+    return res.status(401).json({ error: 'Invalid or expired token.' });
+  }
+}
+
+
+// ── HTML ESCAPE HELPER ───────────────────────────────────────────────────────
+// Prevents admin-typed text (rejection reasons, revision notes, org names)
+// from being interpreted as HTML inside email templates.
+function escapeHtml(str) {
+  return (str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 
 const mailer = nodemailer.createTransport({
@@ -87,6 +141,14 @@ app.get('/firebase-test', async (req, res) => {
 });
 
 
+// ── KEEP-ALIVE (prevents Render free tier from spinning down) ─────────────────
+// Ping this endpoint every 10 minutes from an external cron (e.g. cron-job.org)
+app.get('/ping', (req, res) => {
+  res.json({ ok: true, ts: new Date().toISOString() });
+});
+
+
+// ── PUBLIC: org submits registration ─────────────────────────────────────────
 app.post('/submit', async (req, res) => {
   try {
     const raw = req.body;
@@ -134,7 +196,7 @@ app.post('/submit', async (req, res) => {
     // Send submission confirmation email to the organization's registered email
     try {
       const toEmail = data.orgEmail || '';
-      const orgName = data.org || data.orgName || 'Your Organization';
+      const orgName = escapeHtml(data.org || data.orgName || 'Your Organization');
 
       if (toEmail) {
         const confirmHtml = `
@@ -179,7 +241,8 @@ app.post('/submit', async (req, res) => {
 });
 
 
-app.get('/submissions', async (req, res) => {
+// ── ADMIN: get all submissions ────────────────────────────────────────────────
+app.get('/submissions', requireAdmin, async (req, res) => {
   try {
     const snapshot = await db.collection('submissions').get();
 
@@ -204,8 +267,8 @@ app.get('/submissions', async (req, res) => {
 });
 
 
-// ── UPDATE STATUS ─────────────────────────────────────────────────────────────
-app.patch('/submissions/:id/status', async (req, res) => {
+// ── ADMIN: update submission status ──────────────────────────────────────────
+app.patch('/submissions/:id/status', requireAdmin, async (req, res) => {
   try {
     const { id }     = req.params;
     const { status } = req.body;
@@ -232,7 +295,7 @@ app.patch('/submissions/:id/status', async (req, res) => {
         const subDoc = await db.collection('submissions').doc(id).get();
         const sub    = subDoc.data() || {};
         const toEmail = sub.orgEmail || '';
-        const orgName = sub.org || sub.orgName || 'Your Organization';
+        const orgName = escapeHtml(sub.org || sub.orgName || 'Your Organization');
 
         if (toEmail) {
           const approvalHtml = `
@@ -280,7 +343,7 @@ app.patch('/submissions/:id/status', async (req, res) => {
           const reasonBlock = reason
             ? `<div style="background:#fef2f2;border-left:3px solid #dc2626;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;">
                 <p style="margin:0;font-size:12px;font-weight:600;color:#991b1b;">Reason provided by OSA-SACDEV:</p>
-                <p style="margin:6px 0 0;font-size:13px;color:#7f1d1d;white-space:pre-wrap;">${reason}</p>
+                <p style="margin:6px 0 0;font-size:13px;color:#7f1d1d;white-space:pre-wrap;">${escapeHtml(reason)}</p>
                </div>`
             : '';
 
@@ -329,7 +392,7 @@ app.patch('/submissions/:id/status', async (req, res) => {
           const notesBlock = reason
             ? `<div style="background:#fffbeb;border-left:3px solid #d97706;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;">
                 <p style="margin:0;font-size:12px;font-weight:600;color:#92400e;">Required revisions from OSA-SACDEV:</p>
-                <p style="margin:6px 0 0;font-size:13px;color:#78350f;white-space:pre-wrap;">${reason}</p>
+                <p style="margin:6px 0 0;font-size:13px;color:#78350f;white-space:pre-wrap;">${escapeHtml(reason)}</p>
                </div>`
             : '';
 
@@ -417,7 +480,8 @@ app.patch('/submissions/:id/status', async (req, res) => {
 });
 
 
-app.patch('/submissions/:id/publish', async (req, res) => {
+// ── ADMIN: publish / unpublish strategic plans ────────────────────────────────
+app.patch('/submissions/:id/publish', requireAdmin, async (req, res) => {
   try {
     const { id }        = req.params;
     const { published } = req.body;            
@@ -439,37 +503,53 @@ app.patch('/submissions/:id/publish', async (req, res) => {
 });
 
 
+// ── PUBLIC: fetch published org plans (used by main site) ────────────────────
 app.get('/org-plans/:orgName', async (req, res) => {
   try {
     const orgName = decodeURIComponent(req.params.orgName).trim();
 
-    let snapshot = await db.collection('submissions')
-      .where('org', '==', orgName)
-      .where('published', '==', true)
-      .limit(1)
-      .get();
+    const variants = [orgName];
 
-    if (snapshot.empty) {
-      snapshot = await db.collection('submissions')
-        .where('orgName', '==', orgName)
+    const dashIdx = orgName.indexOf(' – ');
+    if (dashIdx !== -1) {
+      variants.push(orgName.slice(dashIdx + 3).trim());
+      variants.push(orgName.slice(0, dashIdx).trim());
+    }
+
+    const parenMatch = orgName.match(/^(.+)\s+\(([^)]+)\)$/);
+    if (parenMatch) {
+      variants.push(parenMatch[1].trim());
+      variants.push(`${parenMatch[2].trim()} – ${parenMatch[1].trim()}`);
+    }
+
+    let snapshot = null;
+    for (const name of variants) {
+      let snap = await db.collection('submissions')
+        .where('org', '==', name)
         .where('published', '==', true)
         .limit(1)
         .get();
+      if (!snap.empty) { snapshot = snap; break; }
+
+      snap = await db.collection('submissions')
+        .where('orgName', '==', name)
+        .where('published', '==', true)
+        .limit(1)
+        .get();
+      if (!snap.empty) { snapshot = snap; break; }
     }
 
-    if (snapshot.empty) {
+    if (!snapshot || snapshot.empty) {
       return res.json({ published: false, plans: null });
     }
 
     const data = snapshot.docs[0].data();
-
 
     const sp = data.strategicPlan || data;   
 
     const orgDev   = sp['table_bodyOrgDev']   || data['table_bodyOrgDev']   || [];
     const studServ = sp['table_bodyStudServ']  || data['table_bodyStudServ'] || [];
     const commInv  = sp['table_bodyCommInv']   || data['table_bodyCommInv'] || [];
-
 
     const parseRows = (rows) => {
       if (!Array.isArray(rows)) return [];
@@ -512,7 +592,7 @@ app.get('/org-plans/:orgName', async (req, res) => {
 });
 
 
-
+// ── PUBLIC: org checks their own submission status ────────────────────────────
 app.get('/submission-status', async (req, res) => {
   try {
     const email = (req.query.email || '').trim();
@@ -538,21 +618,22 @@ app.get('/submission-status', async (req, res) => {
     const data = doc.data();
 
     res.json({
-      found:       true,
-      id:          doc.id,
-      status:      data.status || 'pending',
-      org:         data.org     || data.orgName || '—',
-      orgName:     data.orgName || data.org     || '—',
-      email:       data.email   || data.orgEmail || email,
-      orgEmail:    data.orgEmail || '',
-      submittedAt: data.submittedAt || data.createdAt?.toDate?.()?.toLocaleString('en-PH') || '—'
+      found:           true,
+      id:              doc.id,
+      status:          data.status || 'pending',
+      org:             data.org     || data.orgName || '—',
+      orgName:         data.orgName || data.org     || '—',
+      email:           data.email   || data.orgEmail || email,
+      orgEmail:        data.orgEmail || '',
+      submittedAt:     data.submittedAt || data.createdAt?.toDate?.()?.toLocaleString('en-PH') || '—',
+      revisionNotes:   data.revisionNotes   || '',
+      rejectionReason: data.rejectionReason || ''
     });
   } catch (err) {
     console.error('Submission-status error:', err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 const EXEC_POSITIONS = ['president','vice president','secretary','treasurer','auditor'];
@@ -615,7 +696,8 @@ async function detectAndStoreConflicts(newSubmissionId, newSubmission) {
 }
 
 
-app.get('/conflicts', async (req, res) => {
+// ── ADMIN: get all conflicts ──────────────────────────────────────────────────
+app.get('/conflicts', requireAdmin, async (req, res) => {
   try {
     const snapshot = await db.collection('conflicts').orderBy('createdAt', 'desc').get();
     const conflicts = snapshot.docs.map(doc => ({
@@ -631,7 +713,8 @@ app.get('/conflicts', async (req, res) => {
 });
 
 
-app.post('/conflicts/:id/notify', async (req, res) => {
+// ── ADMIN: notify orgs about a conflict ──────────────────────────────────────
+app.post('/conflicts/:id/notify', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -656,19 +739,19 @@ app.post('/conflicts/:id/notify', async (req, res) => {
             </tr>
             <tr>
               <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Student ID</td>
-              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.studentId}</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${escapeHtml(c.studentId)}</td>
             </tr>
             <tr style="background:#f8fafc;">
               <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Student Name</td>
-              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.studentName || '—'}</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${escapeHtml(c.studentName || '—')}</td>
             </tr>
             <tr>
               <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Organization 1</td>
-              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.orgName1} — <em>${c.position1}</em></td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${escapeHtml(c.orgName1)} — <em>${escapeHtml(c.position1)}</em></td>
             </tr>
             <tr style="background:#f8fafc;">
               <td style="padding:8px 12px;border:1px solid #e2e8f0;font-weight:600;">Organization 2</td>
-              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${c.orgName2} — <em>${c.position2}</em></td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;">${escapeHtml(c.orgName2)} — <em>${escapeHtml(c.position2)}</em></td>
             </tr>
           </table>
           <p style="color:#475569;font-size:13px;">Please coordinate with OSA-SACDEV to resolve this conflict at your earliest convenience.</p>
@@ -683,7 +766,6 @@ app.post('/conflicts/:id/notify', async (req, res) => {
       return res.status(400).json({ error: 'No valid email addresses found for involved organizations.' });
     }
 
-    // Send email notification to both organizations involved in the conflict (subject to changes kay di mugana)
     await mailer.sendMail({
       from:    '"OSA-SACDEV SOMS" <mardompaurysacdev@gmail.com>',
       to:      recipients.join(', '),
@@ -704,8 +786,8 @@ app.post('/conflicts/:id/notify', async (req, res) => {
 });
 
 
-// ── INTERNAL NOTES ────────────────────────────────────────────────────────────
-app.post('/submissions/:id/notes', async (req, res) => {
+// ── ADMIN: internal notes ─────────────────────────────────────────────────────
+app.post('/submissions/:id/notes', requireAdmin, async (req, res) => {
   try {
     const { id }   = req.params;
     const { text } = req.body;
@@ -714,6 +796,7 @@ app.post('/submissions/:id/notes', async (req, res) => {
     const noteRef = await db.collection('submissions').doc(id)
       .collection('notes').add({
         text:      text.trim(),
+        author:    req.adminEmail,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
@@ -724,7 +807,7 @@ app.post('/submissions/:id/notes', async (req, res) => {
   }
 });
 
-app.get('/submissions/:id/notes', async (req, res) => {
+app.get('/submissions/:id/notes', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const snapshot = await db.collection('submissions').doc(id)
@@ -733,6 +816,7 @@ app.get('/submissions/:id/notes', async (req, res) => {
     const notes = snapshot.docs.map(doc => ({
       id:        doc.id,
       text:      doc.data().text,
+      author:    doc.data().author || '',
       createdAt: doc.data().createdAt?.toDate?.()?.toLocaleString('en-PH') || '—'
     }));
 
@@ -744,8 +828,33 @@ app.get('/submissions/:id/notes', async (req, res) => {
 });
 
 
-// ── RESOLVE CONFLICT ──────────────────────────────────────────────────────────
-app.post('/conflicts/:id/resolve', async (req, res) => {
+// ── PUBLIC: org resubmits after revision ──────────────────────────────────────
+app.patch('/submissions/:id/resubmit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('submissions').doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Submission not found' });
+    if (doc.data().status !== 'revision') {
+      return res.status(400).json({ error: 'Only submissions with revision status can be resubmitted.' });
+    }
+
+    await db.collection('submissions').doc(id).update({
+      status:        'pending',
+      revisionNotes: '',
+      resubmittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt:     admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ message: 'Resubmitted successfully. Your submission is now under review again.', id });
+  } catch (err) {
+    console.error('Resubmit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── ADMIN: resolve a conflict ─────────────────────────────────────────────────
+app.post('/conflicts/:id/resolve', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await db.collection('conflicts').doc(id).get();
@@ -764,8 +873,8 @@ app.post('/conflicts/:id/resolve', async (req, res) => {
 });
 
 
-// ── RESCAN ALL CONFLICTS ───────────────────────────────────────────────────────
-app.post('/rescan-conflicts', async (req, res) => {
+// ── ADMIN: rescan all conflicts ───────────────────────────────────────────────
+app.post('/rescan-conflicts', requireAdmin, async (req, res) => {
   try {
     const snapshot = await db.collection('submissions').get();
     const subs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -786,7 +895,6 @@ app.post('/rescan-conflicts', async (req, res) => {
           for (const ob of execB) {
             if (oa.studentId.trim() !== ob.studentId.trim()) continue;
 
-            // Check if this conflict already exists
             const existing = await db.collection('conflicts')
               .where('studentId', '==', oa.studentId.trim())
               .where('submissionId1', 'in', [a.id, b.id])
@@ -819,6 +927,41 @@ app.post('/rescan-conflicts', async (req, res) => {
     res.json({ message: `Rescan complete. ${newCount} new conflict(s) found.`, newCount });
   } catch (err) {
     console.error('Rescan conflicts error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── PUBLIC: form progress sync (cross-device) ─────────────────────────────────
+app.post('/save-progress', async (req, res) => {
+  try {
+    const { email, data } = req.body;
+    if (!email || !email.trim()) return res.status(400).json({ error: 'email is required' });
+
+    await db.collection('drafts').doc(email.trim().toLowerCase()).set({
+      email:     email.trim().toLowerCase(),
+      data:      data || {},
+      savedAt:   admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ message: 'Progress saved.' });
+  } catch (err) {
+    console.error('Save progress error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/load-progress', async (req, res) => {
+  try {
+    const email = (req.query.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: 'email is required' });
+
+    const doc = await db.collection('drafts').doc(email).get();
+    if (!doc.exists) return res.json({ found: false });
+
+    res.json({ found: true, data: doc.data().data || {} });
+  } catch (err) {
+    console.error('Load progress error:', err);
     res.status(500).json({ error: err.message });
   }
 });

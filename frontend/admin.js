@@ -95,10 +95,56 @@ const CLUSTERS = {
 
 let allSubmissions = [];
 let allConflicts   = [];
+
+// ── FIREBASE INIT (shared across login methods and token refresh) ─────────────
+const _firebaseConfig = {
+    apiKey:            "AIzaSyC5Jr42Aotyjm-8SPFGwGdPiXvnDJ68po8",
+    authDomain:        "sacdev-soms.firebaseapp.com",
+    projectId:         "sacdev-soms",
+    storageBucket:     "sacdev-soms.appspot.com",
+    messagingSenderId: "242176258263",
+    appId:             "1:242176258263:web:cb9be26b17d6d9e96b8092"
+};
+let _fbApp  = null;
+let _fbAuth = null;
+
+async function getFirebaseAuth() {
+    if (_fbAuth) return _fbAuth;
+    const { initializeApp, getApps } =
+        await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getAuth } =
+        await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    _fbApp  = getApps().length ? getApps()[0] : initializeApp(_firebaseConfig);
+    _fbAuth = getAuth(_fbApp);
+    return _fbAuth;
+}
+
+
+// ── TOKEN REFRESH ────────────────────────────────────────────────────────────
+// Firebase ID tokens expire after 1 hour. This helper silently refreshes
+// the token before each API call so the admin is never unexpectedly logged out.
+async function getAuthHeaders() {
+    try {
+        const auth = await getFirebaseAuth();
+        const user = auth.currentUser;
+
+        if (user) {
+            // forceRefresh=true only fetches a new token if the current one
+            // is expired or about to expire — Firebase caches it otherwise
+            const token = await user.getIdToken(false);
+            sessionStorage.setItem('sacdev_adminToken', token);
+            return { Authorization: 'Bearer ' + token };
+        }
+    } catch (e) {
+        console.warn('Token refresh failed:', e.message);
+    }
+
+    // Fallback to stored token if Firebase auth isn't available
+    const stored = sessionStorage.getItem('sacdev_adminToken');
+    return stored ? { Authorization: 'Bearer ' + stored } : {};
+}
 let reportCharts   = {};
 
-const ADMIN_EMAIL    = 'sacdevAdmin@xu.edu.ph';
-const ADMIN_PASSWORD = 'SacDevAdminSOMS';
 
 function goToPage(id) {
     document.querySelectorAll('#adminLogin, #adminDashboard').forEach(el => {
@@ -108,34 +154,134 @@ function goToPage(id) {
     window.scrollTo(0, 0);
 }
 
-function handleAdminLogin() {
-    const email = document.getElementById('adminEmail').value.trim();
-    const pass  = document.getElementById('adminPassword').value;
-    const errEl = document.getElementById('adminLoginError');
+async function handleAdminLogin() {
+    const errEl  = document.getElementById('adminLoginError');
     errEl.classList.add('hidden');
+
+    const email = (document.getElementById('adminEmail').value || '').trim();
+    const pass  = (document.getElementById('adminPassword').value || '');
 
     if (!email || !pass) {
         errEl.textContent = 'Please enter both email and password.';
         errEl.classList.remove('hidden');
         return;
     }
-    if (email !== ADMIN_EMAIL || pass !== ADMIN_PASSWORD) {
-        errEl.textContent = 'Invalid credentials. Please try again.';
-        errEl.classList.remove('hidden');
-        return;
-    }
 
-    try { sessionStorage.setItem('sacdev_adminLoggedIn', '1'); } catch(e) {}
-    goToPage('adminDashboard');
-    initAdminDashboard();
+    const btn    = document.getElementById('adminLoginBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+
+    try {
+        const { signInWithEmailAndPassword } =
+            await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+        const auth  = await getFirebaseAuth();
+        const cred  = await signInWithEmailAndPassword(auth, email, pass);
+        const token = await cred.user.getIdToken();
+
+        const check = await fetch('/submissions', {
+            headers: { Authorization: 'Bearer ' + token }
+        });
+
+        if (check.status === 403) {
+            errEl.textContent = 'This account does not have admin access.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        if (check.status === 401) {
+            errEl.textContent = 'Authentication failed. Please try again.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        sessionStorage.setItem('sacdev_adminToken', token);
+        sessionStorage.setItem('sacdev_adminLoggedIn', '1');
+
+        goToPage('adminDashboard');
+        initAdminDashboard();
+
+    } catch (err) {
+        const msg = (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password')
+                  ? 'Invalid email or password.'
+                  : err.code === 'auth/user-not-found'    ? 'No account found with that email.'
+                  : err.code === 'auth/too-many-requests' ? 'Too many attempts. Try again later.'
+                  : err.code === 'auth/invalid-email'     ? 'Please enter a valid email address.'
+                  : 'Login failed. Please try again.';
+        errEl.textContent = msg;
+        errEl.classList.remove('hidden');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Log In →'; }
+    }
+}
+
+async function handleAdminGoogleLogin() {
+    const errEl  = document.getElementById('adminLoginError');
+    const btn    = document.getElementById('adminGoogleBtn');
+    const btnTxt = document.getElementById('adminGoogleBtnText');
+    errEl.classList.add('hidden');
+
+    if (btn) btn.disabled = true;
+    if (btnTxt) btnTxt.textContent = 'Signing in…';
+
+    try {
+        const { GoogleAuthProvider, signInWithPopup } =
+            await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+        const auth  = await getFirebaseAuth();
+        const adminProvider = new GoogleAuthProvider();
+        adminProvider.setCustomParameters({ prompt: 'select_account' });
+
+        const cred  = await signInWithPopup(auth, adminProvider);
+        const user  = cred.user;
+
+        if (!user.email.endsWith('@xu.edu.ph')) {
+            await auth.signOut();
+            errEl.textContent = 'Access denied. Only @xu.edu.ph staff accounts are allowed.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        const token = await user.getIdToken();
+
+        const check = await fetch('/submissions', {
+            headers: { Authorization: 'Bearer ' + token }
+        });
+
+        if (check.status === 403) {
+            errEl.textContent = 'This account does not have admin access.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        if (check.status === 401) {
+            errEl.textContent = 'Authentication failed. Please try again.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        sessionStorage.setItem('sacdev_adminToken', token);
+        sessionStorage.setItem('sacdev_adminLoggedIn', '1');
+
+        goToPage('adminDashboard');
+        initAdminDashboard();
+
+    } catch (err) {
+        if (err.code === 'auth/popup-closed-by-user') return;
+        const msg = err.code === 'auth/too-many-requests' ? 'Too many attempts. Try again later.'
+                  : 'Google sign-in failed. Please try again.';
+        errEl.textContent = msg;
+        errEl.classList.remove('hidden');
+    } finally {
+        if (btn)    btn.disabled = false;
+        if (btnTxt) btnTxt.textContent = 'Continue with Google (@xu.edu.ph)';
+    }
 }
 
 function handleAdminLogout() {
     allSubmissions = [];
-    try { sessionStorage.removeItem('sacdev_adminLoggedIn'); } catch(e) {}
+    try {
+        sessionStorage.removeItem('sacdev_adminLoggedIn');
+        sessionStorage.removeItem('sacdev_adminToken');
+    } catch(e) {}
     goToPage('adminLogin');
-    document.getElementById('adminEmail').value    = '';
-    document.getElementById('adminPassword').value = '';
 }
 
 async function initAdminDashboard() {
@@ -144,7 +290,7 @@ async function initAdminDashboard() {
     document.getElementById('adminNoData').classList.add('hidden');
 
     try {
-        const res = await fetch('/submissions');
+        const res = await fetch('/submissions', { headers: await getAuthHeaders() });
         if (!res.ok) throw new Error('Failed to fetch submissions');
         allSubmissions = await res.json();
     } catch (e) {
@@ -379,7 +525,7 @@ async function loadAndRenderConflicts() {
     if (tableEl)   tableEl.style.display   = 'none';
 
     try {
-        const res = await fetch('/conflicts');
+        const res = await fetch('/conflicts', { headers: await getAuthHeaders() });
         if (!res.ok) throw new Error('Failed to fetch conflicts');
         allConflicts = await res.json();
     } catch (e) {
@@ -489,7 +635,7 @@ async function notifyConflict(conflictId, btnEl) {
     }
 
     try {
-        const res  = await fetch(`/conflicts/${conflictId}/notify`, { method: 'POST' });
+        const res  = await fetch(`/conflicts/${conflictId}/notify`, { method: 'POST', headers: await getAuthHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Server error');
 
@@ -523,7 +669,7 @@ async function resolveConflict(conflictId, btnEl) {
     }
 
     try {
-        const res = await fetch(`/conflicts/${conflictId}/resolve`, { method: 'POST' });
+        const res = await fetch(`/conflicts/${conflictId}/resolve`, { method: 'POST', headers: await getAuthHeaders() });
         if (!res.ok) throw new Error((await res.json()).error || 'Server error');
         await loadAndRenderConflicts();
     } catch (e) {
@@ -540,7 +686,7 @@ async function rescanConflicts() {
     if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
 
     try {
-        const res  = await fetch('/rescan-conflicts', { method: 'POST' });
+        const res  = await fetch('/rescan-conflicts', { method: 'POST', headers: await getAuthHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Server error');
         await loadAndRenderConflicts();
@@ -693,7 +839,7 @@ function openDetailModal(submission) {
                     ${f('Mobile Number', s.presMobile || s.presidentMobile)}
                     ${f('City Landline', s.presLandlineCity)}
                     ${f('Email Address', s.presEmail || s.presidentEmail)}
-                    ${f('ID Number', s.presIdNumber)}
+                    ${f('ID Number', s.presIdNumber || s.presidentStudentId)}
                     ${f('Provincial Landline', s.presLandlineProv)}
                     ${f('Facebook Account', s.presFacebook)}
                 </div>
@@ -915,7 +1061,7 @@ async function updateStatusAndRefresh(id, status, reason) {
     try {
         const res = await fetch(`/submissions/${id}/status`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...await getAuthHeaders() },
             body: JSON.stringify({ status, reason: reason || '' })
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Server error');
@@ -935,7 +1081,7 @@ async function togglePublish(id, publish) {
     try {
         const res = await fetch(`/submissions/${id}/publish`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...await getAuthHeaders() },
             body: JSON.stringify({ published: publish })
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Server error');
@@ -1176,7 +1322,7 @@ async function loadNotes(submissionId) {
     if (!listEl) return;
 
     try {
-        const res   = await fetch(`/submissions/${submissionId}/notes`);
+        const res   = await fetch(`/submissions/${submissionId}/notes`, { headers: await getAuthHeaders() });
         const notes = await res.json();
 
         if (!notes.length) {
@@ -1203,7 +1349,7 @@ async function saveNote(submissionId) {
     try {
         const res = await fetch(`/submissions/${submissionId}/notes`, {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...await getAuthHeaders() },
             body:    JSON.stringify({ text })
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Server error');

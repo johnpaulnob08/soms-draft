@@ -15,7 +15,10 @@
             </div>
             <div class="navbar-right">
                 <div class="navbar-user hidden" id="navbarUser">
-                    <span class="navbar-email" id="navbarEmail"></span>
+                    <div class="navbar-user-info">
+                        <span class="navbar-email" id="navbarName"></span>
+                        <span class="navbar-org" id="navbarOrg"></span>
+                    </div>
                     <button class="btn-logout" onclick="handleLogout()">Log out</button>
                 </div>
             </div>
@@ -25,9 +28,9 @@
     <div id="loginPage" class="page">
         <div class="container-sm">
             <button class="btn-back" onclick="window.location.href='index.html'">← Back</button>
-            <div class="box" style="text-align:center;">
+            <div class="box">
                 <h1>Log In</h1>
-                <p>Welcome back! Log in to continue.</p>
+                <p>Welcome back! Use your XU account to continue.</p>
             </div>
 
             <div style="margin: 0 0 16px 0;">
@@ -62,8 +65,8 @@
                 </div>
             </div>
 
-            <div style="text-align:right; margin-top:6px; margin-bottom:12px;">
-                <button class="auth-switch-btn" onclick="showForgotPassword()" style="font-size:13px; color:#0f766e; font-weight:600; text-decoration:underline; text-underline-offset:2px;">Forgot Password?</button>
+            <div style="text-align:right; margin-top:4px; margin-bottom:8px;">
+                <button class="auth-switch-btn" onclick="showForgotPassword()" style="font-size:13px; color:#d4af37; font-weight:600; text-decoration:underline; text-underline-offset:2px;">Forgot Password?</button>
             </div>
 
             <!-- Forgot Password inline panel — always in DOM, toggled visible -->
@@ -95,7 +98,7 @@
 
             <div id="loginError" class="error-banner hidden"></div>
 
-            <div class="nav">
+            <div class="nav" style="margin-top:12px;">
                 <div class="nav-left"><button class="btn btn-secondary" onclick="window.location.href='index.html'">← Back</button></div>
                 <div class="nav-right"><button class="btn btn-primary" id="loginSubmitBtn" onclick="handleLogin()">Log In →</button></div>
             </div>
@@ -109,9 +112,9 @@
     <div id="registerPage" class="page hidden">
         <div class="container-sm">
             <button class="btn-back" onclick="showPage('loginPage')">← Back to Login</button>
-            <div class="box" style="text-align:center;">
+            <div class="box">
                 <h1>Create Account</h1>
-                <p>Use your XU email address (@my.xu.edu.ph)</p>
+                <p>Use your official XU email address (@my.xu.edu.ph)</p>
             </div>
 
             <div style="margin: 0 0 16px 0;">
@@ -152,7 +155,7 @@
 
             <div id="registerError" class="error-banner hidden"></div>
 
-            <div class="nav">
+            <div class="nav" style="margin-top:12px;">
                 <div class="nav-left"><button class="btn btn-secondary" onclick="showPage('loginPage')">← Back</button></div>
                 <div class="nav-right"><button class="btn btn-primary" id="registerSubmitBtn" onclick="handleRegister()">Register →</button></div>
             </div>
@@ -171,6 +174,15 @@
         <div id="authError"></div>
     </div>
 
+    <script>
+        // Auth guard — if already logged in, redirect away from login/register
+        (function() {
+            try {
+                var email = sessionStorage.getItem('sacdev_userEmail');
+                if (email) { window.location.replace('registration.html'); }
+            } catch(e) {}
+        })();
+    </script>
     <script type="module" src="firebase-auth.js"></script>
     <script src="script.js"></script>
     <script>
@@ -204,7 +216,7 @@ function showPage(pageId) {
             if (pageName === 'dashboard')    { window.location.href = 'index.html'; return; }
         }
 
-        function handleLogin() {
+        async function handleLogin() {
             if (window.currentState) currentState.authMode = 'login';
 
             const le = document.getElementById('loginEmail');
@@ -212,10 +224,22 @@ function showPage(pageId) {
             document.getElementById('authEmail').value    = le ? le.value : '';
             document.getElementById('authPassword').value = lp ? lp.value : '';
             document.getElementById('authConfirm').value  = '';
-            if (window.handleAuth) window.handleAuth();
+
+            // Wait for firebase-auth.js module to finish loading if needed
+            let attempts = 0;
+            while (!window.handleAuth && attempts < 20) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
+            if (window.handleAuth) {
+                window.handleAuth();
+            } else {
+                const errEl = document.getElementById('loginError');
+                if (errEl) { errEl.textContent = 'Auth service not ready. Please refresh and try again.'; errEl.classList.remove('hidden'); }
+            }
         }
 
-        function handleRegister() {
+        async function handleRegister() {
             if (window.currentState) currentState.authMode = 'register';
 
             const re = document.getElementById('registerEmail');
@@ -224,7 +248,19 @@ function showPage(pageId) {
             document.getElementById('authEmail').value    = re ? re.value : '';
             document.getElementById('authPassword').value = rp ? rp.value : '';
             document.getElementById('authConfirm').value  = rc ? rc.value : '';
-            if (window.handleAuth) window.handleAuth();
+
+            // Wait for firebase-auth.js module to finish loading if needed
+            let attempts = 0;
+            while (!window.handleAuth && attempts < 20) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
+            if (window.handleAuth) {
+                window.handleAuth();
+            } else {
+                const errEl = document.getElementById('registerError');
+                if (errEl) { errEl.textContent = 'Auth service not ready. Please refresh and try again.'; errEl.classList.remove('hidden'); }
+            }
         }
 
         function handleLogout() {

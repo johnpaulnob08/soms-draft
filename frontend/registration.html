@@ -15,7 +15,10 @@
             </div>
             <div class="navbar-right">
                 <div class="navbar-user hidden" id="navbarUser">
-                    <span class="navbar-email" id="navbarEmail"></span>
+                    <div class="navbar-user-info">
+                        <span class="navbar-email" id="navbarName"></span>
+                        <span class="navbar-org" id="navbarOrg"></span>
+                    </div>
                     <button class="btn-logout" onclick="handleLogout()">Log out</button>
                 </div>
             </div>
@@ -40,6 +43,31 @@
                         <div style="font-weight:600;margin-bottom:4px;">New Organization</div>
                         <div style="font-size:14px;color:#94a3b8;font-weight:400;">Coming soon</div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Check Submission Status — visible only when logged in -->
+            <div id="checkStatusSection" style="display:none;margin-top:28px;">
+                <div style="border-top:1px solid #e2e8f0;padding-top:24px;">
+                    <div style="
+                        background:linear-gradient(135deg,#1f3a70 0%,#2d52a0 100%);
+                        border-radius:12px;padding:20px 22px;
+                        display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+                    ">
+                        <div>
+                            <div style="color:#fff;font-size:15px;font-weight:600;margin-bottom:3px;">Check Submission Status</div>
+                            <div style="color:#c9d8f5;font-size:12px;">Already submitted your requirements?</div>
+                        </div>
+                        <button onclick="checkStatusInline()" style="
+                            background:#d4af37;color:#1f3a70;border:none;border-radius:8px;
+                            padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;
+                            font-family:inherit;white-space:nowrap;transition:background 0.2s;
+                        " onmouseover="this.style.background='#c9a72e'"
+                           onmouseout="this.style.background='#d4af37'">
+                            Check Status →
+                        </button>
+                    </div>
+                    <div id="inlineStatusResult" style="margin-top:14px;display:none;"></div>
                 </div>
             </div>
         </div>
@@ -517,15 +545,15 @@
                     </div>
                     <div class="strat-org-row" style="gap:16px;margin-top:16px;">
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Birthday (dd/mm/yyyy)</label>
+                            <label class="form-label">Birthday (dd/mm/yyyy) <span class="required">*</span></label>
                             <input type="text" id="presBirthday" class="form-input" placeholder="dd/mm/yyyy">
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Age</label>
+                            <label class="form-label">Age <span class="required">*</span></label>
                             <input type="number" id="presAge" class="form-input" placeholder="Age">
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Sex</label>
+                            <label class="form-label">Sex <span class="required">*</span></label>
                             <select id="presSex" class="form-select">
                                 <option value="">Select</option>
                                 <option>Male</option>
@@ -534,7 +562,7 @@
                             </select>
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Religion</label>
+                            <label class="form-label">Religion <span class="required">*</span></label>
                             <input type="text" id="presReligion" class="form-input" placeholder="Religion">
                         </div>
                     </div>
@@ -560,8 +588,8 @@
                     </div>
                     <div class="strat-org-row" style="gap:16px;margin-top:16px;">
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">ID Number</label>
-                            <input type="text" id="presIdNumber" class="form-input" placeholder="Student ID No.">
+                            <label class="form-label">ID Number <span class="required">*</span></label>
+                            <input type="text" id="presIdNumber" class="form-input" placeholder="e.g. 20230028975" inputmode="numeric" pattern="\d+">
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
                             <label class="form-label">Provincial Landline</label>
@@ -573,11 +601,11 @@
                         </div>
                     </div>
                     <div class="form-group" style="margin-top:16px;">
-                        <label class="form-label">Complete Home Address</label>
+                        <label class="form-label">Complete Home Address <span class="required">*</span></label>
                         <input type="text" id="presHomeAddress" class="form-input" placeholder="Complete home/provincial address">
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
-                        <label class="form-label">Complete City Address</label>
+                        <label class="form-label">Complete City Address <span class="required">*</span></label>
                         <input type="text" id="presCityAddress" class="form-input" placeholder="Complete city/current address">
                     </div>
                 </div>
@@ -588,7 +616,7 @@
                 <div class="form">
                     <div class="strat-org-row" style="gap:16px;">
                         <div class="form-group" style="flex:2;margin-bottom:0;">
-                            <label class="form-label">Father's Name</label>
+                            <label class="form-label">Father's Name <span class="required">*</span></label>
                             <input type="text" id="presFatherName" class="form-input" placeholder="Father's full name">
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
@@ -602,7 +630,7 @@
                     </div>
                     <div class="strat-org-row" style="gap:16px;margin-top:16px;">
                         <div class="form-group" style="flex:2;margin-bottom:0;">
-                            <label class="form-label">Mother's Name</label>
+                            <label class="form-label">Mother's Name <span class="required">*</span></label>
                             <input type="text" id="presMotherName" class="form-input" placeholder="Mother's full name">
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
@@ -640,7 +668,7 @@
                 <div class="form">
                     <div class="strat-org-row" style="gap:16px;">
                         <div class="form-group" style="flex:2;margin-bottom:0;">
-                            <label class="form-label">Name of High School</label>
+                            <label class="form-label">Name of High School <span class="required">*</span></label>
                             <input type="text" id="presHsName" class="form-input" placeholder="High school name">
                         </div>
                         <div class="form-group" style="flex:2;margin-bottom:0;">
@@ -654,7 +682,7 @@
                     </div>
                     <div class="strat-org-row" style="gap:16px;margin-top:16px;">
                         <div class="form-group" style="flex:2;margin-bottom:0;">
-                            <label class="form-label">Name of Grade School</label>
+                            <label class="form-label">Name of Grade School <span class="required">*</span></label>
                             <input type="text" id="presGsName" class="form-input" placeholder="Grade school name">
                         </div>
                         <div class="form-group" style="flex:2;margin-bottom:0;">
@@ -723,7 +751,7 @@
                 <div class="guidelines-section-title">SKILLS AND INTERESTS</div>
                 <div class="form">
                     <div class="form-group" style="margin-bottom:0;">
-                        <label class="form-label">Skills, Hobbies and Interests</label>
+                        <label class="form-label">Skills, Hobbies and Interests <span class="required">*</span></label>
                         <textarea id="presSkills" class="form-textarea" placeholder="State your skills, hobbies and interests. For computer literacy, please specify the application(s) you frequently use."></textarea>
                     </div>
                 </div>
@@ -781,7 +809,7 @@
                         </div>
                         <div class="officer-card-field">
                             <label class="officer-card-label">Student ID <span class="required">*</span></label>
-                            <input type="text" id="newOfficerStudentId" class="form-input" placeholder="e.g. 202100001">
+                            <input type="text" id="newOfficerStudentId" class="form-input" placeholder="e.g. 20230028975" inputmode="numeric" pattern="\d+">
                         </div>
                     </div>
                     <div class="officer-card-row">
@@ -949,15 +977,15 @@
                     </div>
                     <div class="strat-org-row" style="gap:16px;margin-top:16px;">
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Birthday (dd/mm/yyyy)</label>
+                            <label class="form-label">Birthday (dd/mm/yyyy) <span class="required">*</span></label>
                             <input type="text" id="modBirthday" class="form-input" placeholder="dd/mm/yyyy">
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Age</label>
+                            <label class="form-label">Age <span class="required">*</span></label>
                             <input type="number" id="modAge" class="form-input" placeholder="Age">
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Sex</label>
+                            <label class="form-label">Sex <span class="required">*</span></label>
                             <select id="modSex" class="form-select">
                                 <option value="">Select</option>
                                 <option>Male</option>
@@ -966,7 +994,7 @@
                             </select>
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Religion</label>
+                            <label class="form-label">Religion <span class="required">*</span></label>
                             <input type="text" id="modReligion" class="form-input" placeholder="Religion">
                         </div>
                     </div>
@@ -988,7 +1016,7 @@
                     </div>
                     <div class="strat-org-row" style="gap:16px;margin-top:16px;">
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Status</label>
+                            <label class="form-label">Status <span class="required">*</span></label>
                             <select id="modStatus" class="form-select">
                                 <option value="">Select status</option>
                                 <option>Full-time</option>
@@ -996,7 +1024,7 @@
                             </select>
                         </div>
                         <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label class="form-label">Years of Service in the University</label>
+                            <label class="form-label">Years of Service in the University <span class="required">*</span></label>
                             <input type="text" id="modYearsService" class="form-input" placeholder="e.g. 5 years">
                         </div>
                     </div>
@@ -1025,7 +1053,7 @@
                         </div>
                     </div>
                     <div class="form-group" style="margin-top:16px;margin-bottom:0;">
-                        <label class="form-label">Complete City Address</label>
+                        <label class="form-label">Complete City Address <span class="required">*</span></label>
                         <input type="text" id="modCityAddress" class="form-input" placeholder="Complete city address">
                     </div>
                 </div>
@@ -1085,7 +1113,7 @@
 
                 <div class="form" style="margin-top:20px;">
                     <div class="form-group" style="margin-bottom:0;">
-                        <label class="form-label">Special Skills or Interests Related to the Organization's Nature, Scope, Cause or Advocacy</label>
+                        <label class="form-label">Special Skills or Interests Related to the Organization's Nature, Scope, Cause or Advocacy <span class="required">*</span></label>
                         <textarea id="modSpecialSkills" class="form-textarea" placeholder="Please state any information which may be helpful in assessing your possible contribution to the organization. This may include but is not limited to your field of expertise, your affiliation outside the University, etc."></textarea>
                     </div>
                 </div>
@@ -1252,35 +1280,48 @@
                 padding:28px 24px; margin-bottom:20px;
             ">
                 <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px;">
-                    <div id="appStatusIcon" style="font-size:32px; line-height:1;">Status:</div>
+                    <div id="appStatusIcon" style="font-size:14px; font-weight:600; color:#64748b;">Status:</div>
                     <div>
                         <div id="appStatusOrgName" style="font-size:17px; font-weight:700; color:#0f172a; margin-bottom:4px;"></div>
                         <div id="appStatusBadge" style="
                             display:inline-block; padding:4px 14px; border-radius:20px;
                             font-size:13px; font-weight:700; background:#fef3c7; color:#b45309;
                             border:1.5px solid #fde68a;
-                        "> Pending</div>
+                        ">Under Review</div>
                     </div>
                 </div>
                 <div style="border-top:1px solid #f1f5f9; padding-top:14px; font-size:13px; color:#64748b; line-height:1.7;">
                     <div><strong style="color:#1e293b;">Submitted:</strong> <span id="appStatusDate">—</span></div>
                     <div><strong style="color:#1e293b;">Email:</strong> <span id="appStatusEmail">—</span></div>
                 </div>
+
+                <!-- Revision notes — shown only when status is revision -->
+                <div id="appStatusRevisionNotes" style="display:none; margin-top:16px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:14px 16px;">
+                    <div style="font-size:12px; font-weight:700; color:#92400e; margin-bottom:6px;">Required Revisions from OSA-SACDEV:</div>
+                    <div id="appStatusRevisionNotesText" style="font-size:13px; color:#78350f; white-space:pre-wrap; line-height:1.6;"></div>
+                </div>
+
+                <!-- Rejection reason — shown only when status is rejected -->
+                <div id="appStatusRejectionReason" style="display:none; margin-top:16px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:14px 16px;">
+                    <div style="font-size:12px; font-weight:700; color:#991b1b; margin-bottom:6px;">Reason from OSA-SACDEV:</div>
+                    <div id="appStatusRejectionReasonText" style="font-size:13px; color:#7f1d1d; white-space:pre-wrap; line-height:1.6;"></div>
+                </div>
             </div>
 
             <div style="
                 background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px;
                 padding:16px 20px; margin-bottom:24px; font-size:13px; color:#475569; line-height:1.6;
-            ">
+            " id="appStatusNextMsg">
                 <strong style="color:#0f172a;">What happens next?</strong><br>
                 OSA-SACDEV will review your submitted requirements and update the status below.
                 You will be notified once a decision has been made.
                 Come back to this page anytime to check for updates.
             </div>
 
-            <div class="nav" style="justify-content:center;">
+            <div class="nav" style="justify-content:center; flex-wrap:wrap; gap:10px;">
                 <button class="btn btn-secondary" onclick="window.location.href='index.html'">← Back to Home</button>
-                <button class="btn btn-primary" onclick="checkApplicationStatus()" style="margin-left:12px;">Refresh Status</button>
+                <button class="btn btn-primary" onclick="checkApplicationStatus()">Refresh Status</button>
+                <button id="appStatusResubmitBtn" class="btn btn-primary" style="display:none; background:#d97706; border-color:#d97706;">↩ Resubmit</button>
             </div>
         </div>
     </div>
@@ -1326,7 +1367,16 @@
         </div>
     </div>
 
-    <script type="module" src="firebase-auth.js"></script>
+    <!-- GLOBAL MODAL (alert/confirm replacement) -->
+<div id="sacdevModal" class="sacdev-modal-overlay hidden">
+    <div class="sacdev-modal-box" id="sacdevModalBox">
+        <div class="sacdev-modal-title" id="sacdevModalTitle"></div>
+        <div class="sacdev-modal-message" id="sacdevModalMessage"></div>
+        <div class="sacdev-modal-actions" id="sacdevModalActions"></div>
+    </div>
+</div>
+
+<script type="module" src="firebase-auth.js"></script>
     <script src="script.js"></script>
     <script>
         // ── Polling helpers — defined FIRST so everything below can reference them ────
@@ -1367,41 +1417,198 @@
         // ── Status page data binding ──────────────────────────────────────────────────
         function populateStatusPage(data) {
             var statusMap = {
-                approved: { label: '✓ Approved', bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', icon: '✅' },
-                rejected: { label: '✕ Rejected', bg: '#fef2f2', color: '#dc2626', border: '#fecaca', icon: '❌' },
-                pending:  { label: 'Pending',  bg: '#fef3c7', color: '#b45309', border: '#fde68a', icon: '' }
+                approved: { label: 'Approved',      bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+                rejected: { label: 'Not Approved',  bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+                pending:  { label: 'Under Review',  bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
+                revision: { label: 'For Revision',  bg: '#fffbeb', color: '#d97706', border: '#fde68a' }
             };
             var st = statusMap[data.status] || statusMap.pending;
+
             var orgNameEl = document.getElementById('appStatusOrgName');
             var badgeEl   = document.getElementById('appStatusBadge');
             var iconEl    = document.getElementById('appStatusIcon');
             var dateEl    = document.getElementById('appStatusDate');
             var emailEl   = document.getElementById('appStatusEmail');
+
             if (orgNameEl) orgNameEl.textContent = data.org || data.orgName || '—';
-            if (iconEl)    iconEl.textContent = st.icon;
+            if (iconEl)    iconEl.textContent     = 'Status:';
             if (badgeEl) {
                 badgeEl.textContent      = st.label;
                 badgeEl.style.background = st.bg;
                 badgeEl.style.color      = st.color;
                 badgeEl.style.border     = '1.5px solid ' + st.border;
             }
-            if (dateEl)  dateEl.textContent = data.submittedAt || data.createdAt || '—';
+            if (dateEl)  dateEl.textContent  = data.submittedAt || data.createdAt || '—';
             if (emailEl) emailEl.textContent = data.email || data.orgEmail || '—';
+
+            // Show/hide revision notes block
+            var notesBlock = document.getElementById('appStatusRevisionNotes');
+            if (notesBlock) {
+                if (data.status === 'revision' && data.revisionNotes) {
+                    notesBlock.style.display = '';
+                    var notesText = document.getElementById('appStatusRevisionNotesText');
+                    if (notesText) notesText.textContent = data.revisionNotes;
+                } else {
+                    notesBlock.style.display = 'none';
+                }
+            }
+
+            // Show/hide rejection reason block
+            var rejBlock = document.getElementById('appStatusRejectionReason');
+            if (rejBlock) {
+                if (data.status === 'rejected' && data.rejectionReason) {
+                    rejBlock.style.display = '';
+                    var rejText = document.getElementById('appStatusRejectionReasonText');
+                    if (rejText) rejText.textContent = data.rejectionReason;
+                } else {
+                    rejBlock.style.display = 'none';
+                }
+            }
+
+            // Show/hide resubmit button
+            var resubmitBtn = document.getElementById('appStatusResubmitBtn');
+            if (resubmitBtn) {
+                resubmitBtn.style.display = data.status === 'revision' ? '' : 'none';
+                resubmitBtn.onclick = function() { resubmitApplication(data.id); };
+            }
+
+            // Update "what happens next" message
+            var nextEl = document.getElementById('appStatusNextMsg');
+            if (nextEl) {
+                if (data.status === 'revision') {
+                    nextEl.innerHTML = '<strong style="color:#0f172a;">Action required.</strong><br>OSA-SACDEV has requested revisions to your submission. Please review the notes above, make the necessary corrections, and click <strong>Resubmit</strong> when ready.';
+                } else if (data.status === 'approved') {
+                    nextEl.innerHTML = '<strong style="color:#0f172a;">Congratulations!</strong><br>Your organization is now officially recognized for Academic Year 2026–2027. No further action is required.';
+                } else if (data.status === 'rejected') {
+                    nextEl.innerHTML = '<strong style="color:#0f172a;">Submission not approved.</strong><br>Please contact OSA-SACDEV at <a href="mailto:sacdev@xu.edu.ph">sacdev@xu.edu.ph</a> for further details and next steps.';
+                } else {
+                    nextEl.innerHTML = '<strong style="color:#0f172a;">What happens next?</strong><br>OSA-SACDEV will review your submitted requirements and update the status below. You will be notified once a decision has been made.';
+                }
+            }
         }
+
+        window.resubmitApplication = async function(submissionId) {
+            if (!submissionId) { await showAlert('Submission ID not found. Please refresh and try again.', 'Error', 'error'); return; }
+            const ok = await showConfirm(
+                'Confirm resubmission? Your status will be reset to Under Review and OSA-SACDEV will be notified.',
+                'Confirm Resubmission',
+                'Resubmit',
+                'Cancel'
+            );
+            if (!ok) return;
+
+            var btn = document.getElementById('appStatusResubmitBtn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Resubmitting…'; }
+
+            try {
+                var res = await fetch('/submissions/' + submissionId + '/resubmit', { method: 'PATCH' });
+                var data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Server error');
+                await showAlert('Resubmitted successfully! Your submission is now under review again.', 'Resubmitted', 'success');
+                // Refresh status
+                var email = (window.currentState && currentState.userEmail) || sessionStorage.getItem('sacdev_userEmail');
+                if (email) {
+                    var r2 = await fetch('/submission-status?email=' + encodeURIComponent(email));
+                    var d2 = await r2.json();
+                    if (d2 && d2.found) populateStatusPage(d2);
+                }
+            } catch(e) {
+                await showAlert('Resubmit failed: ' + e.message, 'Error', 'error');
+                if (btn) { btn.disabled = false; btn.textContent = 'Resubmit'; }
+            }
+        };
+
+        // Show/hide checkStatusSection based on login state
+        function _updateCheckStatusVisibility() {
+            var email = sessionStorage.getItem('sacdev_userEmail')
+                || (window.currentState && currentState.userEmail);
+            var section = document.getElementById('checkStatusSection');
+            if (section) section.style.display = email ? '' : 'none';
+        }
+
+        window.checkStatusInline = async function() {
+            var email = sessionStorage.getItem('sacdev_userEmail')
+                || (window.currentState && currentState.userEmail);
+            if (!email) return;
+
+            var btn = event && event.target;
+            if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+
+            var resultEl = document.getElementById('inlineStatusResult');
+            if (resultEl) resultEl.style.display = 'none';
+
+            try {
+                var res  = await fetch('/submission-status?email=' + encodeURIComponent(email));
+                var data = await res.json();
+
+                if (!data || !data.found) {
+                    if (resultEl) {
+                        resultEl.style.display = '';
+                        resultEl.innerHTML = '<div style="text-align:center;font-size:13px;color:#94a3b8;padding:10px 0;">No submission found for this account.</div>';
+                    }
+                    return;
+                }
+
+                var statusMap = {
+                    approved: { label: 'Approved',     bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+                    rejected: { label: 'Not Approved', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+                    pending:  { label: 'Under Review', bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
+                    revision: { label: 'For Revision', bg: '#fffbeb', color: '#d97706', border: '#fde68a' }
+                };
+                var st = statusMap[data.status] || statusMap.pending;
+
+                var revBlock = (data.status === 'revision' && data.revisionNotes)
+                    ? `<div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;">
+                        <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px;">REQUIRED REVISIONS:</div>
+                        <div style="font-size:13px;color:#78350f;white-space:pre-wrap;">${data.revisionNotes}</div>
+                       </div>` : '';
+
+                var rejBlock = (data.status === 'rejected' && data.rejectionReason)
+                    ? `<div style="margin-top:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px 12px;">
+                        <div style="font-size:11px;font-weight:700;color:#991b1b;margin-bottom:4px;">REASON:</div>
+                        <div style="font-size:13px;color:#7f1d1d;white-space:pre-wrap;">${data.rejectionReason}</div>
+                       </div>` : '';
+
+                if (resultEl) {
+                    resultEl.style.display = '';
+                    resultEl.innerHTML = `
+                        <div style="background:#fff;border:1.5px solid ${st.border};border-radius:10px;padding:16px 18px;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                                <div style="font-size:14px;font-weight:700;color:#0f172a;">${data.org || data.orgName || '—'}</div>
+                                <span style="background:${st.bg};color:${st.color};border:1.5px solid ${st.border};padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;">${st.label}</span>
+                            </div>
+                            <div style="font-size:12px;color:#64748b;">Submitted: ${data.submittedAt || '—'}</div>
+                            ${revBlock}
+                            ${rejBlock}
+                            ${data.status === 'revision' ? `<button onclick="window.goToPage('applicationStatus')" style="margin-top:10px;background:#d97706;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">↩ Go to Resubmit</button>` : ''}
+                        </div>
+                    `;
+                }
+                if (window.populateStatusPage) populateStatusPage(data);
+
+            } catch(e) {
+                if (resultEl) {
+                    resultEl.style.display = '';
+                    resultEl.innerHTML = '<div style="text-align:center;font-size:13px;color:#dc2626;padding:10px 0;">Could not reach the server. Please try again.</div>';
+                }
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Check Submission Status'; }
+            }
+        };
 
         window.checkApplicationStatus = function() {
             var email = (window.currentState && currentState.userEmail)
                 || sessionStorage.getItem('sacdev_userEmail');
-            if (!email) { alert('You must be logged in to check your application status.'); return; }
+            if (!email) { showAlert('You must be logged in to check your application status.', 'Notice'); return; }
             var btn = event && event.target;
             if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
             fetch('/submission-status?email=' + encodeURIComponent(email))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.found) { populateStatusPage(data); }
-                    else { alert('No submission found for this account.'); }
+                    else { showAlert('No submission found for this account.', 'Notice'); }
                 })
-                .catch(function() { alert('Could not reach the server. Please try again.'); })
+                .catch(function() { showAlert('Could not reach the server. Please try again.', 'Error', 'error'); })
                 .finally(function() {
                     if (btn) { btn.disabled = false; btn.textContent = 'Refresh Status'; }
                 });
@@ -1421,14 +1628,28 @@
             var savedEmail = sessionStorage.getItem('sacdev_userEmail');
             if (savedEmail) {
                 var navUser  = document.getElementById('navbarUser');
-                var navEmail = document.getElementById('navbarEmail');
-                if (navUser)  navUser.classList.remove('hidden');
-                if (navEmail) navEmail.textContent = savedEmail;
+                var navName  = document.getElementById('navbarName');
+                var navOrg   = document.getElementById('navbarOrg');
+                if (navUser) navUser.classList.remove('hidden');
+                // Load profile from localStorage if available
+                try {
+                    var profileRaw = localStorage.getItem('sacdev_profile_' + savedEmail);
+                    var profile    = profileRaw ? JSON.parse(profileRaw) : null;
+                    if (navName) navName.textContent = profile ? profile.name : savedEmail;
+                    if (navOrg)  navOrg.textContent  = profile ? profile.org  : '';
+                } catch(e) {
+                    if (navName) navName.textContent = savedEmail;
+                }
                 if (window.currentState) {
                     currentState.isLoggedIn = true;
                     currentState.userEmail  = savedEmail;
                 }
+            } else {
+                // Not logged in — redirect to login
+                window.location.href = 'login.html';
+                return;
             }
+            _updateCheckStatusVisibility();
 
             // Wrap the goToPage that script.js defined to intercept cross-page routes
             var _scriptGoToPage = window.goToPage;
@@ -1456,24 +1677,23 @@
                 }
             } catch(e) {}
 
-            // If user is logged in, check whether they already submitted
+            // Navigate to the start page immediately — never block on network calls
+            window.goToPage(startPage);
+
+            // Check submission status in background after navigation
             var emailOnLoad = sessionStorage.getItem('sacdev_userEmail');
             if (emailOnLoad && startPage !== 'applicationStatus') {
                 fetch('/submission-status?email=' + encodeURIComponent(emailOnLoad))
-                    .then(function(r) { return r.json(); })
+                    .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function(data) {
                         if (data && data.found) {
                             populateStatusPage(data);
                             _showStatusPage();
                             _startStatusPolling();
                             try { sessionStorage.setItem('sacdev_currentPage', 'applicationStatus'); } catch(e) {}
-                        } else {
-                            window.goToPage(startPage);
                         }
                     })
-                    .catch(function() { window.goToPage(startPage); });
-            } else {
-                window.goToPage(startPage);
+                    .catch(function() { /* silently ignore — user stays on current page */ });
             }
         });
     </script>

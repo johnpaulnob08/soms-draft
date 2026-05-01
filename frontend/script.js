@@ -134,6 +134,7 @@ let currentState = {
     presidentName: null,
     presidentMobile: null,
     presidentEmail: null,
+    presidentStudentId: null,
     moderatorName: null
 };
 
@@ -172,7 +173,7 @@ function goToPage(pageName) {
     if (pageName === 'orgInfo')       { initOrgInfo(); initOrgInfoProgress(); }
     if (pageName === 'strategicPlan')   { initStrategicPlan(); createProgressCircle('strategicPlan'); updateStratPlanProgress(); }
     if (pageName === 'presidentProfile') { initPresidentProfile(); createProgressCircle('presidentProfile'); updatePresidentProgress(); }
-    if (pageName === 'orgOfficers')      { initOrgOfficers(); }
+    if (pageName === 'orgOfficers')      { initOrgOfficers(); createProgressCircle('orgOfficers'); updateOfficersProgress(); }
     if (pageName === 'orgMembers')       { initOrgMembers(); createProgressCircle('orgMembers'); updateMembersProgress(); }
     if (pageName === 'moderatorProfile') { initModeratorProfile(); createProgressCircle('moderatorProfile'); updateModeratorProgress(); }
     if (pageName === 'gradeAndDocs')     { initGradeAndDocs(); createProgressCircle('gradeAndDocs'); updateGradeDocsProgress(); }
@@ -336,11 +337,84 @@ function switchDashTab(tab) {
     const activePanel = document.getElementById('dashTab-' + tab);
     if (activePanel) activePanel.classList.remove('hidden');
 
+    // Show "Proceed to Registration" only on Home tab
+    const proceedBtn = document.querySelector('.dash-proceed');
+    if (proceedBtn) proceedBtn.style.display = tab === 'home' ? '' : 'none';
+
     // Render content
     if (tab === 'directory') renderDirectory('');
     if (tab === 'councils')  renderCouncils();
     if (tab === 'clusters')  renderClusters();
 }
+
+async function renderHomeStatus() {
+    const section = document.getElementById('applicationStatusSection');
+    if (!section) return;
+
+    // Try to get email — works even after logout via localStorage
+    const email = (window.currentState && currentState.userEmail)
+        || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('sacdev_userEmail'))
+        || (typeof localStorage  !== 'undefined' && localStorage.getItem('sacdev_lastEmail'));
+
+    if (!email) {
+        section.innerHTML = '';
+        return;
+    }
+
+    section.innerHTML = `<div class="home-status-card home-status-loading">Checking submission status…</div>`;
+
+    try {
+        const res  = await fetch('/submission-status?email=' + encodeURIComponent(email));
+        const data = await res.json();
+
+        if (!data || !data.found) {
+            section.innerHTML = '';
+            return;
+        }
+
+        const statusMap = {
+            approved: { label: 'Approved',     bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+            rejected: { label: 'Not Approved', bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+            pending:  { label: 'Under Review', bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
+            revision: { label: 'For Revision', bg: '#fffbeb', color: '#d97706', border: '#fde68a' }
+        };
+        const st = statusMap[data.status] || statusMap.pending;
+
+        const revisionBlock = (data.status === 'revision' && data.revisionNotes)
+            ? `<div class="home-status-notes">
+                <div class="home-status-notes-label">Required Revisions from OSA-SACDEV:</div>
+                <div class="home-status-notes-text">${data.revisionNotes}</div>
+               </div>` : '';
+
+        const rejectionBlock = (data.status === 'rejected' && data.rejectionReason)
+            ? `<div class="home-status-rejection">
+                <div class="home-status-notes-label">Reason from OSA-SACDEV:</div>
+                <div class="home-status-notes-text">${data.rejectionReason}</div>
+               </div>` : '';
+
+        const resubmitBtn = data.status === 'revision'
+            ? `<a href="registration.html" class="home-status-resubmit">↩ Go to Resubmit</a>` : '';
+
+        section.innerHTML = `
+            <div class="home-status-card" style="border-color:${st.border};">
+                <div class="home-status-header">
+                    <div class="home-status-org">${data.org || data.orgName || '—'}</div>
+                    <span class="home-status-badge" style="background:${st.bg};color:${st.color};border:1.5px solid ${st.border};">${st.label}</span>
+                </div>
+                <div class="home-status-meta">
+                    <span>Submitted: ${data.submittedAt || '—'}</span>
+                    <span>Email: ${data.email || data.orgEmail || email}</span>
+                </div>
+                ${revisionBlock}
+                ${rejectionBlock}
+                ${resubmitBtn}
+            </div>
+        `;
+    } catch(e) {
+        section.innerHTML = '';
+    }
+}
+
 
 function renderDirectory(query) {
     const container = document.getElementById('directoryList');
@@ -378,8 +452,11 @@ function renderCouncils() {
         const item = document.createElement('div');
         item.className = 'dash-council-item dash-org-item-clickable';
         item.title = 'Click to view strategic plans';
-        item.innerHTML = `<span class="dash-council-key">${c.key}</span><span class="dash-council-name">${c.name}</span><span class="dash-council-arrow">›</span>`;
-        item.onclick = () => openOrgPlansModal(c.name);
+        // Use same format as clusters data: "Central Student Government (CSG)"
+        // This matches the org names in Directory and Clusters tabs
+        const councilOrgName = `${councils[c.key].name} (${c.key})`;
+        item.innerHTML = `<span class="dash-council-key">${c.key}</span><span class="dash-council-name">${councils[c.key].name}</span><span class="dash-council-arrow">›</span>`;
+        item.onclick = () => openOrgPlansModal(councilOrgName);
         container.appendChild(item);
     });
 }
@@ -1145,7 +1222,89 @@ function saveFormData(formId) {
     } catch(e) {
         console.warn('localStorage save failed:', e);
     }
+    // Sync to Firestore for cross-device persistence
+    _syncProgressToServer();
 }
+
+// Debounced server sync — avoids hammering the server on rapid saves
+let _syncTimer = null;
+function _syncProgressToServer() {
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(async function() {
+        const email = (window.currentState && currentState.userEmail)
+            || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('sacdev_userEmail'));
+        if (!email) return;
+
+        try {
+            // Collect all form data + officers + currentState into one payload
+            const payload = {
+                state:           JSON.parse(JSON.stringify(currentState || {})),
+                forms: {
+                    orgInfo:         JSON.parse(localStorage.getItem(_storageKey('orgInfo'))         || 'null'),
+                    strategicPlan:   JSON.parse(localStorage.getItem(_storageKey('strategicPlan'))   || 'null'),
+                    presidentProfile:JSON.parse(localStorage.getItem(_storageKey('presidentProfile'))|| 'null'),
+                    orgOfficers:     JSON.parse(localStorage.getItem(_storageKey('orgOfficers'))     || 'null'),
+                    orgMembers:      JSON.parse(localStorage.getItem(_storageKey('orgMembers'))      || 'null'),
+                    moderatorProfile:JSON.parse(localStorage.getItem(_storageKey('moderatorProfile'))|| 'null'),
+                    gradeAndDocs:    JSON.parse(localStorage.getItem(_storageKey('gradeAndDocs'))    || 'null'),
+                },
+                officers: JSON.parse(localStorage.getItem('sacdev_officers_list') || '[]')
+            };
+
+            await fetch('/save-progress', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ email, data: payload })
+            });
+        } catch(e) {
+            console.warn('Server progress sync failed:', e);
+        }
+    }, 1500); // debounce 1.5s
+}
+
+// Restore all form progress from Firestore on login (any device)
+window.syncProgressFromServer = async function(email) {
+    if (!email) return;
+    try {
+        const res  = await fetch('/load-progress?email=' + encodeURIComponent(email));
+        const json = await res.json();
+        if (!json.found || !json.data) return;
+
+        const d = json.data;
+
+        // Restore currentState
+        if (d.state) {
+            Object.assign(currentState, d.state);
+            // Persist to sessionStorage so page refreshes work
+            try { sessionStorage.setItem('sacdev_state', JSON.stringify(currentState)); } catch(e) {}
+        }
+
+        // Restore each form to localStorage (keyed by email)
+        if (d.forms) {
+            Object.entries(d.forms).forEach(([formId, formData]) => {
+                if (formData) {
+                    try {
+                        localStorage.setItem(
+                            STORAGE_KEY_PREFIX + email.toLowerCase() + '_' + formId,
+                            JSON.stringify(formData)
+                        );
+                    } catch(e) {}
+                }
+            });
+        }
+
+        // Restore officers list
+        if (d.officers && Array.isArray(d.officers)) {
+            try {
+                localStorage.setItem('sacdev_officers_list', JSON.stringify(d.officers));
+                _officersList = d.officers;
+            } catch(e) {}
+        }
+
+    } catch(e) {
+        console.warn('syncProgressFromServer failed:', e);
+    }
+};
 
 function loadFormData(formId) {
     try {
@@ -1203,6 +1362,26 @@ function submitAndNext(currentForm, nextPage) {
         if (!sig || !sig.src || sig.classList.contains('hidden')) {
             alert("Please upload the President's E-Signature before proceeding.");
             return;
+        }
+
+        // Store president's Student ID so officer table can auto-fill it
+        const presIdEl = document.getElementById('presIdNumber');
+        if (presIdEl && presIdEl.value.trim()) {
+            currentState.presidentStudentId = presIdEl.value.trim();
+            // Update the president row in officers list if already seeded
+            try {
+                var saved = localStorage.getItem('sacdev_officers_list');
+                var list  = saved ? JSON.parse(saved) : [];
+                var presRow = list.find(function(o) { return (o.position || '').toLowerCase() === 'president'; });
+                if (presRow) {
+                    presRow.studentId = currentState.presidentStudentId;
+                    presRow.name      = presRow.name || currentState.presidentName || '';
+                    presRow.mobile    = presRow.mobile || currentState.presidentMobile || '';
+                    presRow.course    = presRow.course || document.getElementById('presCourseYear')?.value?.trim() || '';
+                    localStorage.setItem('sacdev_officers_list', JSON.stringify(list));
+                    _officersList = list;
+                }
+            } catch(e) {}
         }
     }
     if (currentForm === 'orgOfficers') {
@@ -1379,7 +1558,9 @@ function initPresidentProfile() {
     restoreFormData('presidentProfile');
 
     // Attach progress listeners
-    ['presFullName','presCourseYear','presMobile','presEmail'].forEach(id => {
+    ['presFullName','presCourseYear','presBirthday','presAge','presSex','presReligion',
+     'presMobile','presEmail','presIdNumber','presHomeAddress','presCityAddress',
+     'presFatherName','presMotherName','presHsName','presGsName','presSkills'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', updatePresidentProgress); el.addEventListener('change', updatePresidentProgress); }
     });
@@ -1419,7 +1600,12 @@ function deleteSimpleRow(btn) {
 }
 
 function updatePresidentProgress() {
-    const required = ['presFullName','presCourseYear','presMobile','presEmail'];
+    const required = [
+        'presFullName','presCourseYear','presBirthday','presAge','presSex',
+        'presReligion','presMobile','presEmail','presIdNumber',
+        'presHomeAddress','presCityAddress','presFatherName','presMotherName',
+        'presHsName','presGsName','presSkills'
+    ];
     let filled = 0;
     required.forEach(id => {
         const el = document.getElementById(id);
@@ -1449,17 +1635,25 @@ function initOrgOfficers() {
 
     // Pre-seed president if list is empty
     if (_officersList.length === 0 && currentState.presidentName) {
+        const presCourseEl = document.getElementById('presCourseYear');
         _officersList.push({
             position:  'President',
             studentId: currentState.presidentStudentId || '',
             name:      currentState.presidentName,
-            course:    currentState.presCourseYear || '',
+            course:    (presCourseEl && presCourseEl.value.trim()) || currentState.presCourseYear || '',
             qpi1:      '',
             qpi2:      '',
             qpiInt:    '',
             mobile:    currentState.presidentMobile || ''
         });
         _saveOfficersList();
+    } else if (_officersList.length > 0) {
+        // If list exists but president row has no studentId yet, update it now
+        var presRow = _officersList.find(function(o) { return (o.position || '').toLowerCase() === 'president'; });
+        if (presRow && !presRow.studentId && currentState.presidentStudentId) {
+            presRow.studentId = currentState.presidentStudentId;
+            _saveOfficersList();
+        }
     }
 
     _editingOfficerIdx = -1;
@@ -1481,9 +1675,16 @@ function addOfficerFromCard() {
     var qpiInt    = (document.getElementById('newOfficerQpiInt')?.value || '').trim();
     var mobile    = (document.getElementById('newOfficerMobile')?.value || '').trim();
 
-    if (!position && !studentId && !name) {
-        alert('Please fill in at least Position, Student ID, and Name before adding to the list.');
-        document.getElementById('newOfficerPosition')?.focus();
+    if (!position || !studentId || !name) {
+        if (!position) { alert('Position is required.'); document.getElementById('newOfficerPosition')?.focus(); return; }
+        if (!studentId) { alert('Student ID is required.'); document.getElementById('newOfficerStudentId')?.focus(); return; }
+        if (!name) { alert('Full Name is required.'); document.getElementById('newOfficerName')?.focus(); return; }
+    }
+
+    // Validate Student ID — digits only
+    if (!/^\d+$/.test(studentId)) {
+        alert('Student ID must contain digits only — no dashes, spaces, or letters (e.g. 20230028975).');
+        document.getElementById('newOfficerStudentId')?.focus();
         return;
     }
 
@@ -1500,6 +1701,7 @@ function addOfficerFromCard() {
     _renderOfficersTable();
     clearOfficerCard();
     _updateOfficerCardButtons();
+    updateOfficersProgress();
 }
 
 function clearOfficerCard() {
@@ -1549,6 +1751,7 @@ function deleteOfficerRow(idx) {
     _saveOfficersList();
     _renderOfficersTable();
     _updateOfficerCardButtons();
+    updateOfficersProgress();
 }
 
 function _updateOfficerCardButtons() {
@@ -1608,7 +1811,11 @@ function _esc(str) {
 }
 
 function updateOfficersProgress() {
-    // No-op — progress circle removed for officers page
+    const total    = 1; // at least 1 officer beyond president required
+    const nonPres  = _officersList.filter(function(o) { return (o.position || '').toLowerCase() !== 'president'; });
+    const filled   = nonPres.length > 0 ? 1 : 0;
+    const pct      = (filled / total) * 100;
+    updateCircle('orgOfficers', pct, 'Form B-3');
 }
 
 // Legacy stub kept so nothing else breaks
@@ -1683,7 +1890,9 @@ function initModeratorProfile() {
     }
     restoreFormData('moderatorProfile');
 
-    ['modFullName','modDesignation','modDepartment','modMobile','modEmail'].forEach(id => {
+    ['modFullName','modNominatingOrg','modBirthday','modAge','modSex','modReligion',
+     'modDesignation','modDepartment','modStatus','modYearsService',
+     'modMobile','modEmail','modCityAddress','modSpecialSkills'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', updateModeratorProgress); el.addEventListener('change', updateModeratorProgress); }
     });
@@ -1691,7 +1900,11 @@ function initModeratorProfile() {
 }
 
 function updateModeratorProgress() {
-    const required = ['modFullName','modDesignation','modDepartment','modMobile','modEmail'];
+    const required = [
+        'modFullName','modNominatingOrg','modBirthday','modAge','modSex',
+        'modReligion','modDesignation','modDepartment','modStatus',
+        'modYearsService','modMobile','modEmail','modCityAddress','modSpecialSkills'
+    ];
     let filled = 0;
     required.forEach(id => {
         const el = document.getElementById(id);
@@ -1956,6 +2169,7 @@ async function submitAllForms() {
         presMobile:        fv(_presData, 'presMobile')        || document.getElementById('presMobile')?.value?.trim()        || '',
         presEmail:         fv(_presData, 'presEmail')         || document.getElementById('presEmail')?.value?.trim()         || '',
         presIdNumber:      fv(_presData, 'presIdNumber')      || document.getElementById('presIdNumber')?.value?.trim()      || '',
+        presidentStudentId: currentState.presidentStudentId   || fv(_presData, 'presIdNumber') || document.getElementById('presIdNumber')?.value?.trim() || '',
         presLandlineCity:  fv(_presData, 'presLandlineCity')  || document.getElementById('presLandlineCity')?.value?.trim()  || '',
         presLandlineProv:  fv(_presData, 'presLandlineProv')  || document.getElementById('presLandlineProv')?.value?.trim()  || '',
         presFacebook:      fv(_presData, 'presFacebook')      || document.getElementById('presFacebook')?.value?.trim()      || '',

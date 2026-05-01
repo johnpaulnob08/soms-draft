@@ -16,7 +16,10 @@
             </div>
             <div class="navbar-right">
                 <div class="navbar-user hidden" id="navbarUser">
-                    <span class="navbar-email" id="navbarEmail"></span>
+                    <div class="navbar-user-info">
+                        <span class="navbar-email" id="navbarName"></span>
+                        <span class="navbar-org" id="navbarOrg"></span>
+                    </div>
                     <button class="btn-logout" onclick="handleLogout()">Log out</button>
                 </div>
             </div>
@@ -37,7 +40,7 @@
                     <button class="dash-nav-btn" data-tab="clusters" onclick="switchDashTab('clusters')">Clusters</button>
                 </nav>
 
-                <!-- Proceed to Registration — always visible below nav tabs -->
+                <!-- Proceed to Registration — only visible on Home tab -->
                 <div class="dash-proceed">
                     <button class="btn btn-primary" onclick="window.location.href='login.html'">Proceed to Registration</button>
                 </div>
@@ -96,6 +99,17 @@
 
     <script src="script.js"></script>
     <script>
+        // Auth guard — redirect logged-in users to registration.html
+        (function() {
+            try {
+                var email = sessionStorage.getItem('sacdev_userEmail');
+                if (email) {
+                    window.location.replace('registration.html');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    <script>
         // index.html only needs dashboard + councilDetail
         function handleLogout() {
             // Clear all session state on logout
@@ -109,6 +123,18 @@
             if (window.handleSignOut) { window.handleSignOut(); return; }
             window.location.href = 'index.html';
         }
+
+        // Update navbar to show name + org from user profile
+        function updateNavbarProfile(profile) {
+            const nameEl = document.getElementById('navbarName');
+            const orgEl  = document.getElementById('navbarOrg');
+            const userEl = document.getElementById('navbarUser');
+            if (nameEl) nameEl.textContent = profile.name || profile.email || '';
+            if (orgEl)  orgEl.textContent  = profile.org  || '';
+            if (userEl) userEl.classList.remove('hidden');
+        }
+
+        window.updateNavbarProfile = updateNavbarProfile;
     </script>
 </body>
 <footer class="site-footer">
