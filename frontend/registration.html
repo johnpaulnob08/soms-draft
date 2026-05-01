@@ -1267,6 +1267,58 @@
         </div>
     </div>
 
+    <!-- SUBMISSION CONFIRMATION PAGE -->
+    <div id="submissionConfirmation" class="page hidden">
+        <div class="container-sm" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;padding:40px 20px;">
+            <div style="
+                background:#fff;
+                border:1.5px solid #e2e8f0;
+                border-radius:18px;
+                padding:48px 40px 40px;
+                max-width:440px;
+                width:100%;
+                box-shadow:0 4px 24px rgba(0,0,0,0.07);
+            ">
+                <div style="
+                    width:72px;height:72px;
+                    background:linear-gradient(135deg,#1f3a70 0%,#2d52a0 100%);
+                    border-radius:50%;
+                    display:flex;align-items:center;justify-content:center;
+                    margin:0 auto 24px;
+                ">
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 18L15 25L28 11" stroke="#d4af37" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 10px;">Thank you for submitting!</h2>
+                <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0 0 32px;">
+                    Your re-registration requirements have been submitted to OSA-SACDEV. You will be notified once a decision has been made.
+                </p>
+                <button
+                    onclick="goToPage('applicationStatus')"
+                    style="
+                        width:100%;
+                        background:#d4af37;
+                        color:#1f3a70;
+                        border:none;
+                        border-radius:10px;
+                        padding:14px 24px;
+                        font-size:15px;
+                        font-weight:700;
+                        cursor:pointer;
+                        font-family:inherit;
+                        transition:background 0.2s;
+                        letter-spacing:0.2px;
+                    "
+                    onmouseover="this.style.background='#c9a72e'"
+                    onmouseout="this.style.background='#d4af37'"
+                >
+                    Check Status →
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- APPLICATION STATUS PAGE -->
     <div id="applicationStatus" class="page hidden">
         <div class="container-sm">
@@ -1292,7 +1344,7 @@
                 </div>
                 <div style="border-top:1px solid #f1f5f9; padding-top:14px; font-size:13px; color:#64748b; line-height:1.7;">
                     <div><strong style="color:#1e293b;">Submitted:</strong> <span id="appStatusDate">—</span></div>
-                    <div><strong style="color:#1e293b;">Email:</strong> <span id="appStatusEmail">—</span></div>
+                    <div><strong style="color:#1e293b;">Organization Email:</strong> <span id="appStatusEmail">—</span></div>
                 </div>
 
                 <!-- Revision notes — shown only when status is revision -->
@@ -1319,7 +1371,7 @@
             </div>
 
             <div class="nav" style="justify-content:center; flex-wrap:wrap; gap:10px;">
-                <button class="btn btn-secondary" onclick="window.location.href='index.html'">← Back to Home</button>
+                <button class="btn btn-secondary" onclick="goToPage('login')">← Back to Home</button>
                 <button class="btn btn-primary" onclick="checkApplicationStatus()">Refresh Status</button>
                 <button id="appStatusResubmitBtn" class="btn btn-primary" style="display:none; background:#d97706; border-color:#d97706;">↩ Resubmit</button>
             </div>
@@ -1390,7 +1442,8 @@
                     _stopStatusPolling(); return;
                 }
                 var email = (window.currentState && currentState.userEmail)
-                    || sessionStorage.getItem('sacdev_userEmail');
+                    || sessionStorage.getItem('sacdev_userEmail')
+                    || localStorage.getItem('sacdev_lastEmail');
                 if (!email) return;
                 fetch('/submission-status?email=' + encodeURIComponent(email))
                     .then(function(r) { return r.json(); })
@@ -1401,6 +1454,18 @@
 
         function _stopStatusPolling() {
             if (_statusPollInterval) { clearInterval(_statusPollInterval); _statusPollInterval = null; }
+        }
+
+        // ── Generic page show helper (hides sidenav) ─────────────────────────────────
+        function _showPage(pageName) {
+            document.querySelectorAll('.page').forEach(function(p) { p.classList.add('hidden'); });
+            var page = document.getElementById(pageName);
+            if (page) page.classList.remove('hidden');
+            var sn = document.getElementById('formSidenav');
+            if (sn) sn.classList.add('hidden');
+            document.body.classList.remove('has-form-sidenav');
+            window.scrollTo(0, 0);
+            try { sessionStorage.setItem('sacdev_currentPage', pageName); } catch(e) {}
         }
 
         // ── Show the applicationStatus page (no dependency on goToPage) ──────────────
@@ -1439,7 +1504,7 @@
                 badgeEl.style.border     = '1.5px solid ' + st.border;
             }
             if (dateEl)  dateEl.textContent  = data.submittedAt || data.createdAt || '—';
-            if (emailEl) emailEl.textContent = data.email || data.orgEmail || '—';
+            if (emailEl) emailEl.textContent = data.orgEmail || data.email || '—';
 
             // Show/hide revision notes block
             var notesBlock = document.getElementById('appStatusRevisionNotes');
@@ -1506,7 +1571,7 @@
                 if (!res.ok) throw new Error(data.error || 'Server error');
                 await showAlert('Resubmitted successfully! Your submission is now under review again.', 'Resubmitted', 'success');
                 // Refresh status
-                var email = (window.currentState && currentState.userEmail) || sessionStorage.getItem('sacdev_userEmail');
+                var email = (window.currentState && currentState.userEmail) || sessionStorage.getItem('sacdev_userEmail') || localStorage.getItem('sacdev_lastEmail');
                 if (email) {
                     var r2 = await fetch('/submission-status?email=' + encodeURIComponent(email));
                     var d2 = await r2.json();
@@ -1521,14 +1586,16 @@
         // Show/hide checkStatusSection based on login state
         function _updateCheckStatusVisibility() {
             var email = sessionStorage.getItem('sacdev_userEmail')
-                || (window.currentState && currentState.userEmail);
+                || (window.currentState && currentState.userEmail)
+                || localStorage.getItem('sacdev_lastEmail');
             var section = document.getElementById('checkStatusSection');
             if (section) section.style.display = email ? '' : 'none';
         }
 
         window.checkStatusInline = async function() {
             var email = sessionStorage.getItem('sacdev_userEmail')
-                || (window.currentState && currentState.userEmail);
+                || (window.currentState && currentState.userEmail)
+                || localStorage.getItem('sacdev_lastEmail');
             if (!email) return;
 
             var btn = event && event.target;
@@ -1580,11 +1647,12 @@
                             <div style="font-size:12px;color:#64748b;">Submitted: ${data.submittedAt || '—'}</div>
                             ${revBlock}
                             ${rejBlock}
-                            ${data.status === 'revision' ? `<button onclick="window.goToPage('applicationStatus')" style="margin-top:10px;background:#d97706;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">↩ Go to Resubmit</button>` : ''}
                         </div>
                     `;
                 }
                 if (window.populateStatusPage) populateStatusPage(data);
+                // Navigate to full status page
+                window.goToPage('applicationStatus');
 
             } catch(e) {
                 if (resultEl) {
@@ -1598,7 +1666,8 @@
 
         window.checkApplicationStatus = function() {
             var email = (window.currentState && currentState.userEmail)
-                || sessionStorage.getItem('sacdev_userEmail');
+                || sessionStorage.getItem('sacdev_userEmail')
+                || localStorage.getItem('sacdev_lastEmail');
             if (!email) { showAlert('You must be logged in to check your application status.', 'Notice'); return; }
             var btn = event && event.target;
             if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
@@ -1654,9 +1723,10 @@
             // Wrap the goToPage that script.js defined to intercept cross-page routes
             var _scriptGoToPage = window.goToPage;
             window.goToPage = function(pageName) {
-                if (pageName === 'dashboard')         { window.location.href = 'index.html'; return; }
-                if (pageName === 'loginPage')         { window.location.href = 'login.html'; return; }
-                if (pageName === 'applicationStatus') { _showStatusPage(); _startStatusPolling(); return; }
+                if (pageName === 'dashboard')             { window.location.href = 'index.html'; return; }
+                if (pageName === 'loginPage')             { window.location.href = 'login.html'; return; }
+                if (pageName === 'submissionConfirmation'){ _showPage('submissionConfirmation'); _stopStatusPolling(); return; }
+                if (pageName === 'applicationStatus')     { _showStatusPage(); _startStatusPolling(); return; }
                 _stopStatusPolling();
                 if (_scriptGoToPage) _scriptGoToPage(pageName);
             };
@@ -1665,7 +1735,8 @@
             var regPages = [
                 'login','councilSelect','orgSelect','guidelines','orgInfo',
                 'strategicPlan','presidentProfile','orgOfficers','orgMembers',
-                'moderatorProfile','gradeAndDocs','submissionSummary','applicationStatus'
+                'moderatorProfile','gradeAndDocs','submissionSummary',
+                'submissionConfirmation','applicationStatus'
             ];
 
             // Restore last visited page
@@ -1681,8 +1752,9 @@
             window.goToPage(startPage);
 
             // Check submission status in background after navigation
-            var emailOnLoad = sessionStorage.getItem('sacdev_userEmail');
-            if (emailOnLoad && startPage !== 'applicationStatus') {
+            var emailOnLoad = sessionStorage.getItem('sacdev_userEmail')
+                || localStorage.getItem('sacdev_lastEmail');
+            if (emailOnLoad && startPage !== 'applicationStatus' && startPage !== 'submissionConfirmation') {
                 fetch('/submission-status?email=' + encodeURIComponent(emailOnLoad))
                     .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function(data) {

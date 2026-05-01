@@ -136,6 +136,9 @@ onAuthStateChanged(auth, (user) => {
       window.currentState.isLoggedIn = true;
       window.currentState.userEmail  = user.email;
     }
+    // Ensure sessionStorage is always set so registration.html can identify the user
+    try { sessionStorage.setItem('sacdev_userEmail', user.email); } catch(e) {}
+    try { localStorage.setItem('sacdev_lastEmail', user.email); } catch(e) {}
     applyNavbarProfile(user.email);
   }
 });

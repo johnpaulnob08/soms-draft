@@ -158,7 +158,8 @@ app.post('/submit', async (req, res) => {
       const out = {};
       for (const [k, v] of Object.entries(obj)) {
         if (typeof v === 'string' && v.startsWith('data:')) continue;
-        if (/img_|Photo|Signature|Logo|preview/i.test(k) && typeof v === 'string' && v.length > 500) continue;
+        // Strip any residual base64 blobs (not Cloudinary URLs)
+        if (/img_|Photo|Signature|Logo|preview/i.test(k) && typeof v === 'string' && v.length > 500 && !v.startsWith('https://')) continue;
         const safeKey = k.startsWith('__') ? k.slice(2) : k;
         if (Array.isArray(v)) {
 
@@ -183,6 +184,10 @@ app.post('/submit', async (req, res) => {
     };
 
     const data = sanitize(raw);
+
+    // Normalize email to lowercase for consistent querying
+    if (data.email && typeof data.email === 'string') data.email = data.email.trim().toLowerCase();
+    if (data.orgEmail && typeof data.orgEmail === 'string') data.orgEmail = data.orgEmail.trim().toLowerCase();
 
     const docRef = await db.collection('submissions').add({
       ...data,
@@ -595,24 +600,52 @@ app.get('/org-plans/:orgName', async (req, res) => {
 // ── PUBLIC: org checks their own submission status ────────────────────────────
 app.get('/submission-status', async (req, res) => {
   try {
-    const email = (req.query.email || '').trim();
+    const email = (req.query.email || '').trim().toLowerCase();
     if (!email) return res.status(400).json({ error: 'email query parameter is required' });
 
+    console.log('[submission-status] querying for email:', email);
+
+    // Try exact lowercase match first
     let snapshot = await db.collection('submissions')
       .where('email', '==', email)
-      .orderBy('createdAt', 'desc')
-      .limit(1)
       .get();
 
+    // Try orgEmail match
     if (snapshot.empty) {
       snapshot = await db.collection('submissions')
         .where('orgEmail', '==', email)
-        .orderBy('createdAt', 'desc')
-        .limit(1)
         .get();
     }
 
-    if (snapshot.empty) return res.json({ found: false });
+    // Fallback: scan all and compare case-insensitively (catches old docs with mixed-case email)
+    if (snapshot.empty) {
+      console.log('[submission-status] exact match failed, trying case-insensitive scan');
+      const all = await db.collection('submissions').get();
+      const matched = all.docs.filter(doc => {
+        const d = doc.data();
+        return (d.email || '').trim().toLowerCase() === email ||
+               (d.orgEmail || '').trim().toLowerCase() === email;
+      });
+      if (matched.length > 0) {
+        snapshot = { empty: false, docs: matched };
+        console.log('[submission-status] found', matched.length, 'via case-insensitive scan');
+      }
+    }
+
+    // Sort in memory to get most recent (avoids composite index requirement)
+    if (!snapshot.empty && snapshot.docs.length > 1) {
+      const sorted = snapshot.docs.slice().sort((a, b) => {
+        const aTime = a.data().createdAt?.toMillis?.() || 0;
+        const bTime = b.data().createdAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      });
+      snapshot = { empty: false, docs: sorted };
+    }
+
+    if (snapshot.empty) {
+      console.log('[submission-status] no match found for:', email);
+      return res.json({ found: false });
+    }
 
     const doc  = snapshot.docs[0];
     const data = doc.data();

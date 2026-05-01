@@ -116,6 +116,44 @@ const councils = {
     }
 };
 
+// ═══════════════════════════════════════════════════
+// CLOUDINARY UPLOAD HELPER
+// ═══════════════════════════════════════════════════
+const CLOUDINARY_CLOUD   = 'dk5ugzukb';
+const CLOUDINARY_PRESET  = 'sacdev_uploads';
+
+async function uploadToCloudinary(file) {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const resourceType = isPdf ? 'raw' : 'image';
+
+    // Strip extension for public_id — Cloudinary adds it back for raw files
+    const baseName = file.name.replace(/\.[^.]+$/, '');
+    const safeName = baseName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 80);
+    const publicId  = `sacdev/${safeName}_${Date.now()}`;
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', CLOUDINARY_PRESET);
+    fd.append('public_id', publicId);
+
+    const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${resourceType}/upload`,
+        { method: 'POST', body: fd }
+    );
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'Cloudinary upload failed: ' + res.statusText);
+    }
+    const data = await res.json();
+
+    // For PDFs: append .pdf to the secure_url so browsers serve it with correct content-type
+    let url = data.secure_url;
+    if (isPdf && !url.endsWith('.pdf')) url = url + '.pdf';
+    return url;
+}
+
+
+
 // STATE
 
 let currentState = {
@@ -1485,35 +1523,71 @@ function restoreFormData(formId) {
     }
 }
 
-function handleImageUpload(inputId, previewId, placeholderId) {
+async function handleImageUpload(inputId, previewId, placeholderId) {
     const input = document.getElementById(inputId);
     const preview = document.getElementById(previewId);
     const placeholder = document.getElementById(placeholderId);
     if (!input || !input.files || !input.files[0]) return;
     const file = input.files[0];
+
+    // Show local preview immediately while uploading
     const reader = new FileReader();
     reader.onload = e => {
         preview.src = e.target.result;
         preview.classList.remove('hidden');
         if (placeholder) placeholder.style.display = 'none';
-        // Mark parent box
-        const box = input.closest('.upload-box') || input.previousElementSibling;
-        if (box) box.classList.add('has-file');
-        // Trigger progress update
-        const pageEl = input.closest('.page');
-        if (pageEl) triggerProgressUpdate(pageEl.id);
     };
     reader.readAsDataURL(file);
+
+    // Show uploading indicator
+    const box = input.closest('.upload-box') || input.previousElementSibling;
+    if (box) { box.classList.add('has-file'); box.dataset.uploading = '1'; }
+    if (placeholder) placeholder.textContent = 'Uploading…';
+
+    try {
+        const url = await uploadToCloudinary(file);
+        // Store Cloudinary URL on the preview element as data attribute
+        preview.dataset.cloudinaryUrl = url;
+        // Also store on the input for easy retrieval
+        input.dataset.cloudinaryUrl = url;
+        if (box) delete box.dataset.uploading;
+        console.log('[Cloudinary] Uploaded:', inputId, '->', url);
+    } catch(err) {
+        console.error('[Cloudinary] Upload failed:', err);
+        alert('File upload failed. Please try again.');
+        if (box) box.classList.remove('has-file');
+        preview.classList.add('hidden');
+        if (placeholder) { placeholder.style.display = ''; placeholder.textContent = 'Drop file here or click to upload'; }
+    }
+
+    // Trigger progress update
+    const pageEl = input.closest('.page');
+    if (pageEl) triggerProgressUpdate(pageEl.id);
 }
 
-function handleFileUpload(inputId, fileNameElId, boxId) {
+async function handleFileUpload(inputId, fileNameElId, boxId) {
     const input = document.getElementById(inputId);
     const nameEl = document.getElementById(fileNameElId);
     const box = document.getElementById(boxId);
     if (!input || !input.files || !input.files[0]) return;
     const file = input.files[0];
-    if (nameEl) nameEl.textContent = '+ ' + file.name;
-    if (box) box.classList.add('has-file');
+
+    if (nameEl) nameEl.textContent = 'Uploading ' + file.name + '…';
+    if (box) { box.classList.add('has-file'); box.dataset.uploading = '1'; }
+
+    try {
+        const url = await uploadToCloudinary(file);
+        input.dataset.cloudinaryUrl = url;
+        if (nameEl) nameEl.textContent = '+ ' + file.name;
+        if (box) delete box.dataset.uploading;
+        console.log('[Cloudinary] Uploaded PDF:', inputId, '->', url);
+    } catch(err) {
+        console.error('[Cloudinary] PDF upload failed:', err);
+        alert('File upload failed. Please try again.');
+        if (nameEl) nameEl.textContent = '';
+        if (box) box.classList.remove('has-file');
+    }
+
     const pageEl = input.closest('.page');
     if (pageEl) triggerProgressUpdate(pageEl.id);
 }
@@ -2163,7 +2237,10 @@ async function submitAllForms() {
         presAge:           fv(_presData, 'presAge')           || document.getElementById('presAge')?.value?.trim()           || '',
         presSex:           fv(_presData, 'presSex')           || document.getElementById('presSex')?.value?.trim()           || '',
         presReligion:      fv(_presData, 'presReligion')      || document.getElementById('presReligion')?.value?.trim()      || '',
-        email:             currentState.userEmail || '—',
+        email:             (currentState.userEmail
+                           || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('sacdev_userEmail'))
+                           || (typeof localStorage !== 'undefined' && localStorage.getItem('sacdev_lastEmail'))
+                           || '—').toLowerCase(),
         presidentMobile:   currentState.presidentMobile || fv(_presData, 'presMobile') || '—',
         presidentEmail:    currentState.presidentEmail  || fv(_presData, 'presEmail')  || '—',
         presMobile:        fv(_presData, 'presMobile')        || document.getElementById('presMobile')?.value?.trim()        || '',
@@ -2287,6 +2364,12 @@ async function submitAllForms() {
 
         // ── Documents ────────────────────────────────────────
         constitutionFileName: document.getElementById('constitutionFileName')?.textContent?.trim() || '',
+        constitutionUrl:  document.getElementById('constitutionInput')?.dataset?.cloudinaryUrl || '',
+        presPhotoUrl:     document.getElementById('presPhotoInput')?.dataset?.cloudinaryUrl || '',
+        presSignatureUrl: document.getElementById('presSignatureInput')?.dataset?.cloudinaryUrl || '',
+        modPhotoUrl:      document.getElementById('modPhotoInput')?.dataset?.cloudinaryUrl || '',
+        modSignatureUrl:  document.getElementById('modSignatureInput')?.dataset?.cloudinaryUrl || '',
+        orgLogoUrl:       document.getElementById('orgLogoInput')?.dataset?.cloudinaryUrl || '',
         submittedAt: new Date().toLocaleString('en-PH')
     };
 
@@ -2325,10 +2408,10 @@ async function submitAllForms() {
 
         // Store the submission ID so refresh can find it later
         try { sessionStorage.setItem('sacdev_submissionId', result.id || ''); } catch(e) {}
-        try { sessionStorage.setItem('sacdev_currentPage', 'applicationStatus'); } catch(e) {}
+        try { sessionStorage.setItem('sacdev_currentPage', 'submissionConfirmation'); } catch(e) {}
 
         if (window.goToPage) {
-            window.goToPage('applicationStatus');
+            window.goToPage('submissionConfirmation');
         } else {
             alert('All requirements have been submitted successfully!\n\nOSA-SACDEV will evaluate your re-registration requirements before granting recognition.');
             goToPage('dashboard');

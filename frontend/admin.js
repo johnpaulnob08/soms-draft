@@ -710,6 +710,37 @@ function openDetailModal(submission) {
         ? v
         : '<span style="color:#94a3b8;font-style:italic;">N/A</span>';
 
+    // Cloudinary image thumbnail helper
+    const imgThumb = (url, label) => {
+        if (!url) return '';
+        return `<div class="modal-field" style="grid-column:span 1;">
+            <label>${label}</label>
+            <a href="${url}" target="_blank" rel="noopener">
+                <img src="${url}" alt="${label}"
+                    style="max-width:160px;max-height:140px;border-radius:6px;
+                           border:1px solid #e2e8f0;margin-top:4px;display:block;cursor:zoom-in;"
+                    onerror="this.style.display='none';this.nextSibling.style.display='block';">
+                <span style="display:none;font-size:11px;color:#ef4444;">Failed to load</span>
+            </a>
+        </div>`;
+    };
+
+    // Cloudinary PDF link helper
+    const pdfLink = (url, fileName) => {
+        if (!url) return '';
+        const name = fileName || 'View PDF';
+        return `<div class="modal-field" style="grid-column:span 2;">
+            <label>Organization Constitution (PDF)</label>
+            <a href="${url}" target="_blank" rel="noopener"
+               style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;
+                      background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;
+                      font-size:12px;color:#1a2f5e;text-decoration:none;font-weight:600;margin-top:4px;">
+                📄 ${name}
+            </a>
+        </div>`;
+    };
+
+
     // Compact helper: one label:value row
     const f = (label, v) =>
         `<div class="modal-field"><label>${label}</label><span>${val(v)}</span></div>`;
@@ -879,6 +910,13 @@ function openDetailModal(submission) {
                         <span style="white-space:pre-wrap;">${val(s.presSkills)}</span>
                     </div>
                 </div>
+                ${(s.presPhotoUrl || s.presSignatureUrl) ? `
+                <div style="margin-top:12px;font-size:11px;font-weight:700;color:#64748b;
+                    letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;">Uploaded Files</div>
+                <div class="modal-grid-2">
+                    ${imgThumb(s.presPhotoUrl, 'Photo ID')}
+                    ${imgThumb(s.presSignatureUrl, 'E-Signature')}
+                </div>` : ''}
             </div>
 
             <!-- ── Officers (B-3) ────────────────────────────── -->
@@ -991,14 +1029,23 @@ function openDetailModal(submission) {
                         <span style="white-space:pre-wrap;">${val(s.modSpecialSkills)}</span>
                     </div>
                 </div>
+                ${(s.modPhotoUrl || s.modSignatureUrl) ? `
+                <div style="margin-top:12px;font-size:11px;font-weight:700;color:#64748b;
+                    letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;">Uploaded Files</div>
+                <div class="modal-grid-2">
+                    ${imgThumb(s.modPhotoUrl, 'Photo ID')}
+                    ${imgThumb(s.modSignatureUrl, 'E-Signature')}
+                </div>` : ''}
             </div>
 
             <!-- ── Documents ─────────────────────────────────── -->
             <div class="modal-section">
                 <div class="modal-section-title">Documents</div>
-                <div class="modal-grid-2">
-                    ${f('Organization Constitution', hasConst ? '✓ ' + s.constitutionFileName : null)}
-                    ${f('Organization Logo / Seal', s.orgLogoData ? '✓ Uploaded' : null)}
+                <div class="modal-grid-2" style="align-items:start;">
+                    ${pdfLink(s.constitutionUrl, s.constitutionFileName)}
+                    ${imgThumb(s.orgLogoUrl, 'Organization Logo / Seal')}
+                    ${!s.constitutionUrl && hasConst ? f('Organization Constitution', '✓ ' + s.constitutionFileName + ' (file not available — submitted before Cloudinary integration)') : ''}
+                    ${!s.orgLogoUrl && s.orgLogoData ? f('Organization Logo / Seal', '✓ Uploaded (base64 — not viewable)') : ''}
                 </div>
             </div>
 
